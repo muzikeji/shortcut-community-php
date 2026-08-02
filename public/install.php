@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: text/html; charset=utf-8');
-define('ROOT_DIR', dirname(__DIR__));
+defined('ROOT_DIR') || define('ROOT_DIR', dirname(__DIR__));
 
 function installHtml(string $msg, string $type = 'info', bool $done = false): void {
     $color = $type === 'error' ? '#e74c3c' : ($type === 'success' ? '#27ae60' : '#3498db');
