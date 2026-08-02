@@ -1,0 +1,11 @@
+RewriteEngine On
+
+# API 路由
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^api/ index.php [QSA,L]
+
+# 前端 SPA 回退
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(?!api/) index.php [QSA,L]
