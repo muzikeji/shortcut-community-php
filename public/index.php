@@ -173,6 +173,19 @@ function routeApi(string $path): void {
         return;
     }
 
+    // Update
+    if ($parts[0] === 'update') {
+        require_once ROOT_DIR . '/src/routes/update.php';
+        if ($method === 'GET' && ($parts[1] ?? '') === 'check') {
+            \Shortcut\Routes\checkUpdate();
+        } elseif ($method === 'POST' && ($parts[1] ?? '') === 'run') {
+            \Shortcut\Routes\doUpdate();
+        } else {
+            Response::notFound();
+        }
+        return;
+    }
+
     Response::notFound();
 }
 
