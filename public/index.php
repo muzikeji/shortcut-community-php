@@ -23,6 +23,8 @@ Database::init(ROOT_DIR);
 
 if (strpos($path, '/api/') === 0) {
     routeApi(trim(substr($path, 4), '/'));
+} elseif (strpos($path, '/uploads/') === 0) {
+    serveUpload($path);
 } elseif ($path === '/install.php' || $path === '/install') {
     require ROOT_DIR . '/public/install.php';
 } else {
@@ -194,6 +196,22 @@ function routeApi(string $path): void {
     }
 
     Response::notFound();
+}
+
+function serveUpload(string $path): void {
+    $file = ROOT_DIR . $path;
+    if (!file_exists($file) || !is_file($file)) {
+        Response::notFound();
+    }
+    $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+    $mimeTypes = [
+        'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
+        'gif' => 'image/gif', 'webp' => 'image/webp', 'svg' => 'image/svg+xml',
+    ];
+    header('Content-Type: ' . ($mimeTypes[$ext] ?? 'application/octet-stream'));
+    header('Cache-Control: public, max-age=86400');
+    readfile($file);
+    exit;
 }
 
 function serveStatic(string $path): void {

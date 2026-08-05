@@ -176,7 +176,7 @@ function uploadAvatar(): void {
         Response::error('只支持 jpg / png / gif 格式');
     }
 
-    $uploadDir = dirname(__DIR__, 1) . '/uploads';
+    $uploadDir = ROOT_DIR . '/uploads';
     if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
 
     $filename = $authUser['id'] . '_' . time() . '.' . $ext;
