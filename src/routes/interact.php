@@ -33,7 +33,7 @@ function likeShortcut(string $idOrSlug): void {
     $count->execute([$shortcut['id']]);
     Response::json([
         'liked' => $liked,
-        'likeCount' => (int) $count->fetch()['like_count'],
+        'like_count' => (int) $count->fetch()['like_count'],
     ]);
 }
 

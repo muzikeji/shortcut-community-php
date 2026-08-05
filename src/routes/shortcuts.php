@@ -115,26 +115,8 @@ function getShortcuts(): void {
 
 function getShortcutByIdOrSlug(string $idOrSlug): void {
     $db = Database::get();
-    $numeric = is_numeric($idOrSlug);
 
-    if ($numeric) {
-        $stmt = $db->prepare('
-            SELECT s.*, u.username, u.avatar
-            FROM shortcuts s LEFT JOIN users u ON s.user_id = u.id
-            WHERE s.id = ?
-        ');
-        $stmt->execute([(int) $idOrSlug]);
-        $s = $stmt->fetch();
-    } else {
-        $stmt = $db->prepare('
-            SELECT s.*, u.username, u.avatar
-            FROM shortcuts s LEFT JOIN users u ON s.user_id = u.id
-            WHERE s.slug = ?
-        ');
-        $stmt->execute([$idOrSlug]);
-        $s = $stmt->fetch();
-    }
-
+    $s = findShortcut($db, $idOrSlug);
     if (!$s) Response::notFound();
 
     $authUser = Auth::optionalAuth();
@@ -398,16 +380,17 @@ function getSimilar(string $idOrSlug): void {
         LIMIT 5
     ");
     $stmt->execute([$shortcut['category'], $shortcut['id']]);
-    Response::json(['similar' => $stmt->fetchAll()]);
+    Response::json(['shortcuts' => $stmt->fetchAll()]);
 }
 
 function findShortcut(PDO $db, string $value): ?array {
     if (is_numeric($value)) {
         $stmt = $db->prepare('SELECT * FROM shortcuts WHERE id = ?');
         $stmt->execute([(int) $value]);
-    } else {
-        $stmt = $db->prepare('SELECT * FROM shortcuts WHERE slug = ?');
-        $stmt->execute([$value]);
+        $s = $stmt->fetch();
+        if ($s) return $s;
     }
+    $stmt = $db->prepare('SELECT * FROM shortcuts WHERE slug = ?');
+    $stmt->execute([$value]);
     return $stmt->fetch() ?: null;
 }
