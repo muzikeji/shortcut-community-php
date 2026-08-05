@@ -85,7 +85,13 @@ function updateSetting(): void {
         }
     }
 
-    Response::json(['message' => '保存成功']);
+    // Return updated settings
+    $stmt = $db->query('SELECT `key`, `value` FROM settings');
+    $pairs = [];
+    while ($row = $stmt->fetch()) {
+        $pairs[$row['key']] = $row['value'];
+    }
+    Response::json(dbToFrontend($pairs));
 }
 
 function updateSiteSettings(): void {
