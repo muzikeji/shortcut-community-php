@@ -32,7 +32,9 @@ function doUpdate(): void {
         Response::error('缺少 PHP ZipArchive 扩展，无法执行在线升级', 500);
     }
 
-    set_time_limit(300);
+    ignore_user_abort(true);
+    set_time_limit(0);
+
     $rootDir = defined('ROOT_DIR') ? ROOT_DIR : dirname(__DIR__);
     $tmpDir = $rootDir . '/data/.tmp_update';
     $backupDir = $rootDir . '/data/.backup_' . date('YmdHis');
@@ -40,101 +42,152 @@ function doUpdate(): void {
     if (is_dir($tmpDir)) rrmdir($tmpDir);
     mkdir($tmpDir, 0755, true);
 
-    $latest = fetchLatestRelease();
-    if (!$latest) {
-        rrmdir($tmpDir);
-        Response::error('无法获取最新版本信息', 502);
-    }
-
     $current = getCurrentVersion();
-    if (!version_compare(ltrim($latest['tag'], 'v'), ltrim($current, 'v'), '>')) {
-        rrmdir($tmpDir);
-        Response::json(['message' => '已是最新版本', 'version' => $current]);
-        return;
-    }
 
-    $zipFile = $tmpDir . '/update.zip';
-    $zipContent = @file_get_contents($latest['downloadUrl']);
-    if (!$zipContent) {
-        rrmdir($tmpDir);
-        Response::error('下载更新包失败', 502);
-    }
-    file_put_contents($zipFile, $zipContent);
+    $stage = $_GET['stage'] ?? 'download';
+    $metaFile = $tmpDir . '/meta.json';
 
-    $zip = new \ZipArchive();
-    if ($zip->open($zipFile) !== true) {
-        rrmdir($tmpDir);
-        Response::error('无法打开更新包', 500);
-    }
-
-    mkdir($backupDir, 0755, true);
-    if (is_dir($rootDir . '/data') && basename($rootDir . '/data') !== 'data') {
-        // safety check
-    }
-    $dataBackup = is_dir($rootDir . '/data');
-    $uploadsBackup = is_dir($rootDir . '/uploads');
-
-    if ($dataBackup) {
-        copyDir($rootDir . '/data', $backupDir . '/data');
-    }
-    if ($uploadsBackup) {
-        copyDir($rootDir . '/uploads', $backupDir . '/uploads');
-    }
-    if (file_exists($rootDir . '/.env')) {
-        copy($rootDir . '/.env', $backupDir . '/.env');
-    }
-
-    $errors = [];
-    for ($i = 0; $i < $zip->numFiles; $i++) {
-        $entry = $zip->getNameIndex($i);
-        $relative = preg_replace('#^php-shortcut/#', '', $entry);
-        if ($relative === '' || $relative === 'php-shortcut/') continue;
-
-        // Skip protected dirs
-        if (strpos($relative, 'data/') === 0) continue;
-        if (strpos($relative, 'uploads/') === 0) continue;
-        if ($relative === '.env') continue;
-
-        $target = $rootDir . '/' . $relative;
-
-        if (substr($entry, -1) === '/') {
-            if (!is_dir($target)) mkdir($target, 0755, true);
-            continue;
+    if ($stage === 'download') {
+        $latest = fetchLatestRelease();
+        if (!$latest) {
+            rrmdir($tmpDir);
+            Response::error('无法获取最新版本信息', 502);
         }
 
-        $parent = dirname($target);
-        if (!is_dir($parent)) mkdir($parent, 0755, true);
-
-        if ($zip->extractTo($rootDir, $entry)) {
-            $extractedPath = $rootDir . '/' . $entry;
-            if ($extractedPath !== $target) {
-                rename($extractedPath, $target);
-            }
-        } else {
-            $errors[] = $relative;
+        if (!version_compare(ltrim($latest['tag'], 'v'), ltrim($current, 'v'), '>')) {
+            rrmdir($tmpDir);
+            Response::json(['message' => '已是最新版本', 'version' => $current]);
+            return;
         }
-    }
-    $zip->close();
 
-    rrmdir($tmpDir);
-
-    if (!empty($errors)) {
+        file_put_contents($metaFile, json_encode($latest));
         Response::json([
-            'message' => '部分文件更新失败',
-            'errors' => $errors,
-            'backup' => '数据已备份到 ' . basename($backupDir),
+            'stage' => 'download',
+            'message' => '开始下载更新包...',
             'version' => $latest['tag'],
+            'size' => $latest['size'],
         ]);
         return;
     }
 
-    Response::json([
-        'message' => '升级完成',
-        'version' => $latest['tag'],
-        'from' => $current,
-        'backup' => '数据已备份到 ' . basename($backupDir),
-        'note' => '请在终端运行 composer install 以更新依赖',
-    ]);
+    if ($stage === 'install') {
+        if (!file_exists($metaFile)) {
+            rrmdir($tmpDir);
+            Response::error('未找到下载任务，请先执行下载');
+        }
+
+        $latest = json_decode(file_get_contents($metaFile), true);
+        if (!$latest) {
+            rrmdir($tmpDir);
+            Response::error('更新包信息已损坏');
+        }
+
+        $zipFile = $tmpDir . '/update.zip';
+
+        if (file_exists($zipFile)) {
+            // zip already downloaded from previous step
+            if (filesize($zipFile) < 1024) {
+                unlink($zipFile);
+            }
+        }
+
+        if (!file_exists($zipFile)) {
+            $ctx = stream_context_create([
+                'http' => [
+                    'timeout' => 120,
+                    'follow_location' => 1,
+                    'max_redirects' => 5,
+                    'header' => "User-Agent: PHP-Shortcut-Updater\r\n",
+                ],
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                ],
+            ]);
+            $zipContent = file_get_contents($latest['downloadUrl'], false, $ctx);
+            if (!$zipContent || strlen($zipContent) < 1024) {
+                rrmdir($tmpDir);
+                Response::error('下载更新包失败', 502);
+            }
+            file_put_contents($zipFile, $zipContent);
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($zipFile) !== true) {
+            rrmdir($tmpDir);
+            Response::error('无法打开更新包', 500);
+        }
+
+        try {
+            mkdir($backupDir, 0755, true);
+            if (is_dir($rootDir . '/data')) {
+                copyDir($rootDir . '/data', $backupDir . '/data');
+            }
+            if (is_dir($rootDir . '/uploads')) {
+                copyDir($rootDir . '/uploads', $backupDir . '/uploads');
+            }
+            if (file_exists($rootDir . '/.env')) {
+                copy($rootDir . '/.env', $backupDir . '/.env');
+            }
+
+            $errors = [];
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entry = $zip->getNameIndex($i);
+                $relative = preg_replace('#^php-shortcut/#', '', $entry);
+                if ($relative === '' || $relative === 'php-shortcut/') continue;
+                if (strpos($relative, 'data/') === 0) continue;
+                if (strpos($relative, 'uploads/') === 0) continue;
+                if ($relative === '.env') continue;
+
+                $target = $rootDir . '/' . $relative;
+
+                if (substr($entry, -1) === '/') {
+                    if (!is_dir($target)) mkdir($target, 0755, true);
+                    continue;
+                }
+
+                $parent = dirname($target);
+                if (!is_dir($parent)) mkdir($parent, 0755, true);
+
+                if ($zip->extractTo($rootDir, $entry)) {
+                    $extractedPath = $rootDir . '/' . $entry;
+                    if ($extractedPath !== $target) {
+                        rename($extractedPath, $target);
+                    }
+                } else {
+                    $errors[] = $relative;
+                }
+            }
+            $zip->close();
+        } catch (\Exception $e) {
+            $zip->close();
+            rrmdir($tmpDir);
+            Response::error('解压过程出错: ' . $e->getMessage(), 500);
+        }
+
+        rrmdir($tmpDir);
+
+        if (!empty($errors)) {
+            Response::json([
+                'message' => '部分文件更新失败',
+                'errors' => $errors,
+                'backup' => '数据已备份到 ' . basename($backupDir),
+                'version' => $latest['tag'],
+            ]);
+            return;
+        }
+
+        Response::json([
+            'message' => '升级完成',
+            'version' => $latest['tag'],
+            'from' => $current,
+            'backup' => '数据已备份到 ' . basename($backupDir),
+            'note' => '请在终端运行 composer install 以更新依赖',
+        ]);
+        return;
+    }
+
+    Response::error('无效的升级阶段');
 }
 
 function getCurrentVersion(): string {
