@@ -158,6 +158,8 @@ function routeApi(string $path): void {
             \Shortcut\Routes\getAllShortcuts();
         } elseif ($method === 'DELETE' && ($parts[1] ?? '') === 'shortcuts' && isset($parts[2])) {
             \Shortcut\Routes\deleteShortcut((int) $parts[2]);
+        } elseif ($method === 'POST' && ($parts[1] ?? '') === 'shortcuts' && isset($parts[2]) && ($parts[3] ?? '') === 'delete') {
+            \Shortcut\Routes\deleteShortcut((int) $parts[2]);
         } else {
             Response::notFound();
         }
