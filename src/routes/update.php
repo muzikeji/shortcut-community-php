@@ -37,7 +37,7 @@ function doUpdate(): void {
 
     $rootDir = defined('ROOT_DIR') ? ROOT_DIR : dirname(__DIR__);
     $tmpDir = $rootDir . '/data/.tmp_update';
-    $backupDir = $rootDir . '/data/.backup_' . date('YmdHis');
+    $backupDir = $rootDir . '/.backup_' . date('YmdHis');
 
     $stage = $_GET['stage'] ?? 'download';
     $metaFile = $tmpDir . '/meta.json';
@@ -217,6 +217,7 @@ function copyDir(string $src, string $dst): void {
     $dir = opendir($src);
     while (($file = readdir($dir)) !== false) {
         if ($file === '.' || $file === '..') continue;
+        if (strpos($file, '.backup_') === 0) continue;
         $s = $src . '/' . $file;
         $d = $dst . '/' . $file;
         if (is_dir($s)) {
@@ -236,6 +237,7 @@ function deployFiles(string $src, string $dst, array &$errors): void {
         $d = $dst . '/' . $item;
 
         if ($item === 'data' || $item === 'uploads' || $item === '.env') continue;
+        if (strpos($item, '.backup_') === 0) continue;
 
         if (is_dir($s)) {
             if (!is_dir($d)) mkdir($d, 0755, true);
