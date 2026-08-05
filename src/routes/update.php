@@ -196,7 +196,7 @@ function fetchLatestRelease(): ?array {
     $downloadUrl = null;
     $size = 0;
     foreach ($release['assets'] ?? [] as $asset) {
-        if (str_ends_with($asset['name'], '.zip')) {
+        if (substr($asset['name'], -4) === '.zip') {
             $downloadUrl = $asset['browser_download_url'];
             $size = $asset['size'];
             break;
