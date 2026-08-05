@@ -264,6 +264,7 @@ function getVersion(): void {
         'ziparchive' => class_exists('ZipArchive'),
     ]);
 }
+function rrmdir(string $dir): void {
     if (!is_dir($dir)) return;
     $items = scandir($dir);
     foreach ($items as $item) {
