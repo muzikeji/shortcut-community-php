@@ -42,51 +42,25 @@ function getComments(string $idOrSlug): void {
     $shortcut = \Shortcut\Routes\findShortcut($db, $idOrSlug);
     if (!$shortcut) Response::notFound();
 
-    $page = max(1, (int) ($_GET['page'] ?? 1));
-    $limit = max(1, min(50, (int) ($_GET['limit'] ?? 50)));
-
-    $total = $db->prepare('SELECT COUNT(*) as total FROM comments WHERE shortcut_id = ?');
-    $total->execute([$shortcut['id']]);
-    $totalCount = (int) $total->fetch()['total'];
-
     $sort = $_GET['sort'] ?? 'newest';
     $orderBy = $sort === 'popular' ? 'c.like_count DESC, c.created_at DESC' : 'c.created_at DESC';
 
-    $allRows = $db->prepare("
+    $stmt = $db->prepare("
         SELECT c.*, u.username, u.avatar
         FROM comments c
         LEFT JOIN users u ON c.user_id = u.id
         WHERE c.shortcut_id = ?
         ORDER BY {$orderBy}
     ");
-    $allRows->execute([$shortcut['id']]);
-    $rows = $allRows->fetchAll();
+    $stmt->execute([$shortcut['id']]);
+    $rows = $stmt->fetchAll();
 
-    $comments = [];
-    $replyMap = [];
-    foreach ($rows as $r) {
-        $r['replies'] = [];
-        if ($r['parent_id']) {
-            $replyMap[$r['parent_id']][] = $r;
-        } else {
-            $comments[] = $r;
-        }
-    }
-
-    foreach ($comments as &$c) {
-        if (isset($replyMap[$c['id']])) {
-            $c['replies'] = $replyMap[$c['id']];
-        }
-    }
-    unset($c);
-
-    $offset = ($page - 1) * $limit;
-    $paged = array_slice($comments, $offset, $limit);
+    $totalCount = count($rows);
 
     Response::json([
-        'comments' => $paged,
+        'comments' => $rows,
         'total' => $totalCount,
-        'totalPages' => max(1, (int) ceil(count($comments) / $limit)),
+        'totalPages' => 1,
     ]);
 }
 

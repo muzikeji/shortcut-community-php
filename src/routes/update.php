@@ -247,9 +247,17 @@ function deployFiles(string $src, string $dst, array &$errors): void {
         if (strpos($item, '.backup_') === 0) continue;
 
         if (is_dir($s)) {
-            if (!is_dir($d)) mkdir($d, 0755, true);
+            if (!is_dir($d)) @mkdir($d, 0755, true);
+            if (!is_dir($d)) {
+                $errors[] = str_replace($dst . '/', '', $d) . '/';
+                continue;
+            }
             deployFiles($s, $d, $errors);
         } else {
+            $content = @file_get_contents($s);
+            if ($content !== false && @file_put_contents($d, $content) !== false) {
+                continue;
+            }
             if (!@copy($s, $d)) {
                 $errors[] = str_replace($dst . '/', '', $d);
             }
