@@ -31,14 +31,38 @@ function getUsers(): void {
     $page = max(1, (int) ($_GET['page'] ?? 1));
     $limit = max(1, (int) ($_GET['limit'] ?? 20));
     $offset = ($page - 1) * $limit;
+    $search = $_GET['search'] ?? '';
 
-    $total = $db->query('SELECT COUNT(*) as cnt FROM users')->fetch()['cnt'];
-    $stmt = $db->prepare('SELECT id, username, email, avatar, bio, role, banned, created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?');
-    $stmt->execute([$limit, $offset]);
+    $where = '';
+    $params = [];
+    if ($search) {
+        $where = 'WHERE username LIKE ? OR email LIKE ?';
+        $params = ["%{$search}%", "%{$search}%"];
+    }
+
+    $count = $db->prepare("SELECT COUNT(*) as cnt FROM users {$where}");
+    $count->execute($params);
+    $total = (int) $count->fetch()['cnt'];
+
+    $stmtParams = $params;
+    $stmtParams[] = $limit;
+    $stmtParams[] = $offset;
+    $stmt = $db->prepare("
+        SELECT u.id, u.username, u.email, u.avatar, u.bio, u.role, u.banned, u.created_at,
+               COUNT(s.id) as shortcut_count
+        FROM users u
+        LEFT JOIN shortcuts s ON s.user_id = u.id
+        {$where}
+        GROUP BY u.id
+        ORDER BY u.created_at DESC
+        LIMIT ? OFFSET ?
+    ");
+    $stmt->execute($stmtParams);
 
     Response::json([
         'users' => $stmt->fetchAll(),
-        'total' => (int) $total,
+        'total' => $total,
+        'totalPages' => max(1, (int) ceil($total / $limit)),
     ]);
 }
 
@@ -77,7 +101,16 @@ function banUser(int $userId): void {
     if (!$authUser) Response::forbidden();
     if ($userId == $authUser['id']) Response::error('不能操作自己的账号');
 
-    Database::get()->prepare('UPDATE users SET banned = 1 WHERE id = ?')->execute([$userId]);
+    $db = Database::get();
+    $stmt = $db->prepare('SELECT role FROM users WHERE id = ?');
+    $stmt->execute([$userId]);
+    $target = $stmt->fetch();
+    if (!$target) Response::notFound();
+    if ($target['role'] === 'admin') Response::error('不能封禁管理员');
+
+    $db->prepare('UPDATE users SET banned = 1 WHERE id = ?')->execute([$userId]);
+    $db->prepare("UPDATE shortcuts SET status = 'removed' WHERE user_id = ? AND status = 'active'")
+       ->execute([$userId]);
     Response::json(['message' => '已封禁']);
 }
 
@@ -125,30 +158,39 @@ function getAllShortcuts(): void {
     $page = max(1, (int) ($_GET['page'] ?? 1));
     $limit = max(1, (int) ($_GET['limit'] ?? 20));
     $search = $_GET['search'] ?? '';
+    $status = $_GET['status'] ?? '';
     $offset = ($page - 1) * $limit;
 
-    $where = '';
+    $where = [];
     $params = [];
     if ($search) {
-        $where = 'WHERE s.title LIKE ? OR u.username LIKE ?';
+        $where[] = '(s.title LIKE ? OR u.username LIKE ?)';
         $params = ["%{$search}%", "%{$search}%"];
     }
+    if ($status) {
+        $where[] = 's.status = ?';
+        $params[] = $status;
+    }
+    $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-    $count = $db->prepare("SELECT COUNT(*) as cnt FROM shortcuts s LEFT JOIN users u ON s.user_id = u.id {$where}");
+    $count = $db->prepare("SELECT COUNT(*) as cnt FROM shortcuts s LEFT JOIN users u ON s.user_id = u.id {$whereClause}");
     $count->execute($params);
+    $total = (int) $count->fetch()['cnt'];
 
-    $params[] = $limit;
-    $params[] = $offset;
+    $stmtParams = $params;
+    $stmtParams[] = $limit;
+    $stmtParams[] = $offset;
     $stmt = $db->prepare("
         SELECT s.*, u.username
         FROM shortcuts s LEFT JOIN users u ON s.user_id = u.id
-        {$where}
+        {$whereClause}
         ORDER BY s.created_at DESC LIMIT ? OFFSET ?
     ");
-    $stmt->execute($params);
+    $stmt->execute($stmtParams);
 
     Response::json([
         'shortcuts' => $stmt->fetchAll(),
-        'total' => (int) $count->fetch()['cnt'],
+        'total' => $total,
+        'totalPages' => max(1, (int) ceil($total / $limit)),
     ]);
 }

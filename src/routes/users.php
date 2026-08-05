@@ -92,7 +92,14 @@ function getCurrentUser(): void {
 
 function getUserById(string $id): void {
     $db = Database::get();
-    $stmt = $db->prepare('SELECT id, username, avatar, bio, role, created_at FROM users WHERE id = ?');
+    $stmt = $db->prepare('
+        SELECT u.id, u.username, u.avatar, u.bio, u.created_at,
+               COUNT(s.id) as shortcut_count
+        FROM users u
+        LEFT JOIN shortcuts s ON s.user_id = u.id
+        WHERE u.id = ?
+        GROUP BY u.id
+    ');
     $stmt->execute([(int) $id]);
     $user = $stmt->fetch();
     if (!$user) Response::notFound();
