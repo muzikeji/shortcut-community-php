@@ -39,15 +39,13 @@ function doUpdate(): void {
     $tmpDir = $rootDir . '/data/.tmp_update';
     $backupDir = $rootDir . '/data/.backup_' . date('YmdHis');
 
-    if (is_dir($tmpDir)) rrmdir($tmpDir);
-    mkdir($tmpDir, 0755, true);
-
-    $current = getCurrentVersion();
-
     $stage = $_GET['stage'] ?? 'download';
     $metaFile = $tmpDir . '/meta.json';
+    $current = getCurrentVersion();
 
     if ($stage === 'download') {
+        if (is_dir($tmpDir)) rrmdir($tmpDir);
+        mkdir($tmpDir, 0755, true);
         $latest = fetchLatestRelease();
         if (!$latest) {
             rrmdir($tmpDir);
