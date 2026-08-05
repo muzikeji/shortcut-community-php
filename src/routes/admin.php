@@ -194,3 +194,21 @@ function getAllShortcuts(): void {
         'totalPages' => max(1, (int) ceil($total / $limit)),
     ]);
 }
+
+function deleteShortcut(int $shortcutId): void {
+    $authUser = Auth::requireAdmin();
+    if (!$authUser) Response::forbidden();
+
+    $db = Database::get();
+    $shortcut = $db->prepare('SELECT * FROM shortcuts WHERE id = ?');
+    $shortcut->execute([$shortcutId]);
+    $s = $shortcut->fetch();
+    if (!$s) Response::notFound();
+
+    $db->prepare('DELETE FROM comments WHERE shortcut_id = ?')->execute([$shortcutId]);
+    $db->prepare('DELETE FROM likes WHERE shortcut_id = ?')->execute([$shortcutId]);
+    $db->prepare('DELETE FROM shortcut_versions WHERE shortcut_id = ?')->execute([$shortcutId]);
+    $db->prepare('DELETE FROM shortcuts WHERE id = ?')->execute([$shortcutId]);
+
+    Response::json(['message' => '删除成功']);
+}

@@ -95,6 +95,13 @@ function doUpdate(): void {
             Response::error('未找到下载任务，请先执行下载');
         }
 
+        $items = scandir($rootDir);
+        foreach ($items as $item) {
+            if (strpos($item, '.backup_') === 0 && is_dir($rootDir . '/' . $item)) {
+                rrmdir($rootDir . '/' . $item);
+            }
+        }
+
         $latest = json_decode(file_get_contents($metaFile), true);
         if (!$latest) {
             Response::error('更新包信息已损坏');
