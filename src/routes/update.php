@@ -254,6 +254,9 @@ function deployFiles(string $src, string $dst, array &$errors): void {
             }
             deployFiles($s, $d, $errors);
         } else {
+            if (@rename($s, $d)) {
+                continue;
+            }
             $content = @file_get_contents($s);
             if ($content !== false && @file_put_contents($d, $content) !== false) {
                 continue;
