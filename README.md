@@ -1,11 +1,11 @@
 # 捷径社区 (PHP)
 
-基于 PHP 8.2 + SQLite 的快捷指令分享社区。
+基于 PHP + SQLite 的快捷指令分享社区。
 
 ## 环境要求
 
-- PHP >= 7.4（推荐 8.2+）
-- PHP 扩展：pdo_sqlite, mbstring, json, openssl, curl, xml
+- PHP >= 7.4，推荐 8.0+
+- PHP 扩展：pdo_sqlite, mbstring, json, openssl, curl, xml, zip
 - Composer
 - Apache / Nginx / PHP 内置开发服务器
 
@@ -45,7 +45,7 @@ server {
     }
 
     location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_pass unix:/var/run/php/php-fpm.sock;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         include fastcgi_params;
@@ -149,3 +149,22 @@ php-shortcut/
 | GET | /api/settings/admin | 管理设置 |
 | PUT | /api/settings | 更新设置 |
 | PUT | /api/settings/site | 批量更新站点设置 |
+
+### 系统升级
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/update/check | 检查更新 |
+| POST | /api/update/run?stage=download | 下载更新包 |
+| POST | /api/update/run?stage=install | 安装更新 |
+| GET | /api/version | 公开版本信息 |
+
+## 在线升级
+
+管理后台「系统升级」TAB 支持从 GitHub Release 一键升级：
+
+1. 点击「检查更新」获取最新版本信息
+2. 点击「立即升级」→ 确认 → 自动下载 zip → 安装部署
+
+升级过程自动保护 `data/`（数据库）、`uploads/`（用户文件）、`.env`（环境配置），其他文件将被新版覆盖。升级前会自动备份到 `data/.backup_YYYYmmddHHMMSS/`。
+
+如果在线升级不可用（PHP < 8.0 无法运行 ZIP 解压），可手动下载最新版 zip 解压覆盖网站根目录。
