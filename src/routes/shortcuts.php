@@ -116,7 +116,7 @@ function getShortcuts(): void {
 function getShortcutByIdOrSlug(string $idOrSlug): void {
     $db = Database::get();
 
-    $s = findShortcut($db, $idOrSlug);
+    $s = findShortcutWithUser($db, $idOrSlug);
     if (!$s) Response::notFound();
 
     $authUser = Auth::optionalAuth();
@@ -128,6 +128,18 @@ function getShortcutByIdOrSlug(string $idOrSlug): void {
     }
 
     Response::json(['shortcut' => $s]);
+}
+
+function findShortcutWithUser(PDO $db, string $value): ?array {
+    if (is_numeric($value)) {
+        $stmt = $db->prepare('SELECT s.*, u.username, u.avatar FROM shortcuts s LEFT JOIN users u ON s.user_id = u.id WHERE s.id = ?');
+        $stmt->execute([(int) $value]);
+        $s = $stmt->fetch();
+        if ($s) return $s;
+    }
+    $stmt = $db->prepare('SELECT s.*, u.username, u.avatar FROM shortcuts s LEFT JOIN users u ON s.user_id = u.id WHERE s.slug = ?');
+    $stmt->execute([$value]);
+    return $stmt->fetch() ?: null;
 }
 
 function fetchName(): void {

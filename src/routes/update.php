@@ -130,37 +130,22 @@ function doUpdate(): void {
                 copy($rootDir . '/.env', $backupDir . '/.env');
             }
 
-            $errors = [];
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $entry = $zip->getNameIndex($i);
-                $relative = preg_replace('#^php-shortcut/#', '', $entry);
-                if ($relative === '' || $relative === 'php-shortcut/') continue;
-                if (strpos($relative, 'data/') === 0) continue;
-                if (strpos($relative, 'uploads/') === 0) continue;
-                if ($relative === '.env') continue;
+            $extractDir = $tmpDir . '/extracted';
+            mkdir($extractDir, 0755, true);
+            $zip->extractTo($extractDir);
+            $zip->close();
 
-                $target = $rootDir . '/' . $relative;
-
-                if (substr($entry, -1) === '/') {
-                    if (!is_dir($target)) mkdir($target, 0755, true);
-                    continue;
-                }
-
-                $parent = dirname($target);
-                if (!is_dir($parent)) mkdir($parent, 0755, true);
-
-                if ($zip->extractTo($rootDir, $entry)) {
-                    $extractedPath = $rootDir . '/' . $entry;
-                    if ($extractedPath !== $target) {
-                        rename($extractedPath, $target);
-                    }
-                } else {
-                    $errors[] = $relative;
-                }
+            $srcBase = '';
+            if (is_dir($extractDir . '/php-shortcut')) {
+                $srcBase = $extractDir . '/php-shortcut';
+            } else {
+                $srcBase = $extractDir;
             }
-            $zip->close();
+
+            $errors = [];
+            deployFiles($srcBase, $rootDir, $errors);
         } catch (\Exception $e) {
-            $zip->close();
+            if (isset($zip)) @$zip->close();
             rrmdir($tmpDir);
             Response::error('解压过程出错: ' . $e->getMessage(), 500);
         }
@@ -251,7 +236,34 @@ function copyDir(string $src, string $dst): void {
     closedir($dir);
 }
 
-function rrmdir(string $dir): void {
+function deployFiles(string $src, string $dst, array &$errors): void {
+    $dir = opendir($src);
+    while (($item = readdir($dir)) !== false) {
+        if ($item === '.' || $item === '..') continue;
+        $s = $src . '/' . $item;
+        $d = $dst . '/' . $item;
+
+        if ($item === 'data' || $item === 'uploads' || $item === '.env') continue;
+
+        if (is_dir($s)) {
+            if (!is_dir($d)) mkdir($d, 0755, true);
+            deployFiles($s, $d, $errors);
+        } else {
+            if (!@copy($s, $d)) {
+                $errors[] = str_replace($dst . '/', '', $d);
+            }
+        }
+    }
+    closedir($dir);
+}
+
+function getVersion(): void {
+    Response::json([
+        'version' => getCurrentVersion(),
+        'php' => PHP_VERSION,
+        'ziparchive' => class_exists('ZipArchive'),
+    ]);
+}
     if (!is_dir($dir)) return;
     $items = scandir($dir);
     foreach ($items as $item) {

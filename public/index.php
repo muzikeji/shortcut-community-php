@@ -186,6 +186,13 @@ function routeApi(string $path): void {
         return;
     }
 
+    // Version (public debug)
+    if ($parts[0] === 'version') {
+        require_once ROOT_DIR . '/src/routes/update.php';
+        \Shortcut\Routes\getVersion();
+        return;
+    }
+
     Response::notFound();
 }
 
