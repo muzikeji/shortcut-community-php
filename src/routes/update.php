@@ -46,6 +46,7 @@ function doUpdate(): void {
     if ($stage === 'download') {
         if (is_dir($tmpDir)) rrmdir($tmpDir);
         mkdir($tmpDir, 0755, true);
+
         $latest = fetchLatestRelease();
         if (!$latest) {
             rrmdir($tmpDir);
@@ -59,9 +60,30 @@ function doUpdate(): void {
         }
 
         file_put_contents($metaFile, json_encode($latest));
+
+        $zipFile = $tmpDir . '/update.zip';
+        $ctx = stream_context_create([
+            'http' => [
+                'timeout' => 120,
+                'follow_location' => 1,
+                'max_redirects' => 5,
+                'header' => "User-Agent: PHP-Shortcut-Updater\r\n",
+            ],
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+            ],
+        ]);
+        $zipContent = file_get_contents($latest['downloadUrl'], false, $ctx);
+        if (!$zipContent || strlen($zipContent) < 1024) {
+            rrmdir($tmpDir);
+            Response::error('下载更新包失败，请检查网络后重试', 502);
+        }
+        file_put_contents($zipFile, $zipContent);
+
         Response::json([
             'stage' => 'download',
-            'message' => '开始下载更新包...',
+            'message' => '更新包下载完成',
             'version' => $latest['tag'],
             'size' => $latest['size'],
         ]);
@@ -70,49 +92,21 @@ function doUpdate(): void {
 
     if ($stage === 'install') {
         if (!file_exists($metaFile)) {
-            rrmdir($tmpDir);
             Response::error('未找到下载任务，请先执行下载');
         }
 
         $latest = json_decode(file_get_contents($metaFile), true);
         if (!$latest) {
-            rrmdir($tmpDir);
             Response::error('更新包信息已损坏');
         }
 
         $zipFile = $tmpDir . '/update.zip';
-
-        if (file_exists($zipFile)) {
-            // zip already downloaded from previous step
-            if (filesize($zipFile) < 1024) {
-                unlink($zipFile);
-            }
-        }
-
-        if (!file_exists($zipFile)) {
-            $ctx = stream_context_create([
-                'http' => [
-                    'timeout' => 120,
-                    'follow_location' => 1,
-                    'max_redirects' => 5,
-                    'header' => "User-Agent: PHP-Shortcut-Updater\r\n",
-                ],
-                'ssl' => [
-                    'verify_peer' => false,
-                    'verify_peer_name' => false,
-                ],
-            ]);
-            $zipContent = file_get_contents($latest['downloadUrl'], false, $ctx);
-            if (!$zipContent || strlen($zipContent) < 1024) {
-                rrmdir($tmpDir);
-                Response::error('下载更新包失败', 502);
-            }
-            file_put_contents($zipFile, $zipContent);
+        if (!file_exists($zipFile) || filesize($zipFile) < 1024) {
+            Response::error('更新包文件缺失或损坏，请重新执行下载');
         }
 
         $zip = new \ZipArchive();
         if ($zip->open($zipFile) !== true) {
-            rrmdir($tmpDir);
             Response::error('无法打开更新包', 500);
         }
 
