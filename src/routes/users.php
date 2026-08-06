@@ -114,22 +114,40 @@ function updateProfile(): void {
     $body = json_decode(file_get_contents('php://input'), true);
     $username = trim($body['username'] ?? '');
     $email = trim($body['email'] ?? '');
-    $bio = trim($body['bio'] ?? '');
+    $bio = isset($body['bio']) ? trim($body['bio']) : null;
 
     $db = Database::get();
-    if ($username) {
+
+    $fields = [];
+    $params = [];
+
+    if (isset($body['username']) && $username !== '') {
         $exist = $db->prepare('SELECT id FROM users WHERE username = ? AND id != ?');
         $exist->execute([$username, $authUser['id']]);
         if ($exist->fetch()) Response::error('用户名已被使用');
+        $fields[] = 'username = ?';
+        $params[] = $username;
     }
-    if ($email) {
+    if (isset($body['email']) && $email !== '') {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            Response::error('请输入有效的邮箱地址');
+        }
         $exist = $db->prepare('SELECT id FROM users WHERE email = ? AND id != ?');
         $exist->execute([$email, $authUser['id']]);
         if ($exist->fetch()) Response::error('邮箱已被使用');
+        $fields[] = 'email = ?';
+        $params[] = $email;
+    }
+    if ($bio !== null) {
+        $fields[] = 'bio = ?';
+        $params[] = $bio;
     }
 
-    $db->prepare('UPDATE users SET username = ?, email = ?, bio = ? WHERE id = ?')
-       ->execute([$username, $email, $bio, $authUser['id']]);
+    if (!empty($fields)) {
+        $params[] = $authUser['id'];
+        $db->prepare('UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ?')
+           ->execute($params);
+    }
 
     $stmt = $db->prepare('SELECT id, username, email, avatar, bio, role, created_at FROM users WHERE id = ?');
     $stmt->execute([$authUser['id']]);
