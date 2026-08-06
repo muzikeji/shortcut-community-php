@@ -423,8 +423,8 @@ function sendWechatNotify(PDO $db, array $shortcut, array $authUser): void {
         return;
     }
 
+    // 优先从设置读取，其次从当前请求推断站点地址
     $siteUrl = 'http://localhost';
-
     try {
         $stmt = $db->query("SELECT `value` FROM settings WHERE `key` = 'site_url'");
         $urlRow = $stmt->fetch();
@@ -432,6 +432,13 @@ function sendWechatNotify(PDO $db, array $shortcut, array $authUser): void {
             $siteUrl = rtrim($urlRow['value'], '/');
         }
     } catch (\Exception $e) {}
+
+    if ($siteUrl === 'http://localhost' && !empty($_SERVER['HTTP_HOST'])) {
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (!empty($_SERVER['REQUEST_SCHEME']) && $_SERVER['REQUEST_SCHEME'] === 'https')
+            ? 'https' : 'http';
+        $siteUrl = $scheme . '://' . $_SERVER['HTTP_HOST'];
+    }
 
     $adminUrl = $siteUrl . '/admin';
     $shortcutUrl = $siteUrl . '/shortcut/' . $shortcut['slug'];
