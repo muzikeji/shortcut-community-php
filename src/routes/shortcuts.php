@@ -51,11 +51,15 @@ function getShortcuts(): void {
     $sort = $_GET['sort'] ?? '';
     $userId = $_GET['userId'] ?? '';
     $includeRemoved = !empty($_GET['includeRemoved']);
+    $status = $_GET['status'] ?? '';
 
     $where = [];
     $params = [];
 
-    if (!$includeRemoved) {
+    if ($status && $userId && $authUser && (int) $userId === $authUser['id']) {
+        $where[] = 's.status = ?';
+        $params[] = $status;
+    } elseif (!$includeRemoved) {
         $where[] = "s.status = 'active'";
         $where[] = "(u.banned IS NULL OR u.banned = 0)";
     }
@@ -246,8 +250,19 @@ function updateShortcut(string $idOrSlug): void {
     }
     if (!$updates) Response::error('没有要修改的内容');
 
+    $needReview = $shortcut['status'] !== 'active';
+    if ($needReview) {
+        $updates[] = "status = 'pending'";
+    }
+
     $params[] = $shortcut['id'];
     $db->prepare('UPDATE shortcuts SET ' . implode(', ', $updates) . ' WHERE id = ?')->execute($params);
+
+    if ($needReview) {
+        $updated = $db->prepare('SELECT s.*, u.username, u.avatar FROM shortcuts s LEFT JOIN users u ON s.user_id = u.id WHERE s.id = ?');
+        $updated->execute([$shortcut['id']]);
+        sendWechatNotify($db, $updated->fetch(), $authUser);
+    }
 
     $stmt = $db->prepare('SELECT s.*, u.username, u.avatar FROM shortcuts s LEFT JOIN users u ON s.user_id = u.id WHERE s.id = ?');
     $stmt->execute([$shortcut['id']]);
