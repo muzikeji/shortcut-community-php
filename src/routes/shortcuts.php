@@ -199,8 +199,8 @@ function createShortcut(): void {
 
     $finalColor = preg_match('/^#[0-9a-fA-F]{6}$/', $color) ? $color : ($meta['color'] ?? '');
 
-    $db->prepare('INSERT INTO shortcuts (slug, title, description, category, file_url, file_size, user_id, color, stats)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([
+    $db->prepare('INSERT INTO shortcuts (slug, title, description, category, file_url, file_size, user_id, color, stats, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([
         $finalSlug,
         $meta['name'] ?: $title,
         $description,
@@ -210,6 +210,7 @@ function createShortcut(): void {
         $authUser['id'],
         $finalColor,
         $statsJson,
+        'pending',
     ]);
 
     $shortcutId = $db->lastInsertId();
@@ -218,7 +219,11 @@ function createShortcut(): void {
 
     $stmt = $db->prepare('SELECT s.*, u.username, u.avatar FROM shortcuts s LEFT JOIN users u ON s.user_id = u.id WHERE s.id = ?');
     $stmt->execute([$shortcutId]);
-    Response::json(['shortcut' => $stmt->fetch()], 201);
+    $created = $stmt->fetch();
+
+    sendWechatNotify($db, $created, $authUser);
+
+    Response::json(['shortcut' => $created], 201);
 }
 
 function updateShortcut(string $idOrSlug): void {
@@ -405,4 +410,60 @@ function findShortcut(PDO $db, string $value): ?array {
     $stmt = $db->prepare('SELECT * FROM shortcuts WHERE slug = ?');
     $stmt->execute([$value]);
     return $stmt->fetch() ?: null;
+}
+
+function sendWechatNotify(PDO $db, array $shortcut, array $authUser): void {
+    try {
+        $stmt = $db->query("SELECT `value` FROM settings WHERE `key` = 'wechat_bot_token'");
+        $row = $stmt->fetch();
+        if (!$row || !$row['value']) return;
+
+        $token = $row['value'];
+    } catch (\Exception $e) {
+        return;
+    }
+
+    $siteUrl = 'http://localhost';
+
+    try {
+        $stmt = $db->query("SELECT `value` FROM settings WHERE `key` = 'site_url'");
+        $urlRow = $stmt->fetch();
+        if ($urlRow && $urlRow['value']) {
+            $siteUrl = rtrim($urlRow['value'], '/');
+        }
+    } catch (\Exception $e) {}
+
+    $adminUrl = $siteUrl . '/admin';
+    $shortcutUrl = $siteUrl . '/shortcut/' . $shortcut['slug'];
+    $title = $shortcut['title'] ?? '未命名';
+    $username = $authUser['username'] ?? '未知';
+    $description = mb_substr($shortcut['description'] ?? '', 0, 100);
+    $category = $shortcut['category'] ?? '其他';
+
+    $content = "> **新投稿待审核**\n"
+        . "> 名称：<font color=\"info\">{$title}</font>\n"
+        . "> 分类：{$category}\n"
+        . "> 作者：{$username}\n"
+        . "> 简介：{$description}\n"
+        . "> [查看详情]({$shortcutUrl})\n"
+        . "> \n"
+        . "> [前往审核]({$adminUrl})";
+
+    $data = [
+        'msgtype' => 'markdown',
+        'markdown' => ['content' => $content],
+    ];
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={$token}",
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($data),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 10,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    curl_exec($ch);
+    curl_close($ch);
 }

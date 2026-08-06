@@ -154,8 +154,18 @@ function routeApi(string $path): void {
             \Shortcut\Routes\banUser((int) $parts[2]);
         } elseif ($method === 'PUT' && ($parts[1] ?? '') === 'users' && isset($parts[2]) && ($parts[3] ?? '') === 'unban') {
             \Shortcut\Routes\unbanUser((int) $parts[2]);
+        } elseif ($method === 'GET' && ($parts[1] ?? '') === 'shortcuts' && ($parts[2] ?? '') === 'pending') {
+            \Shortcut\Routes\getPendingShortcuts();
         } elseif ($method === 'GET' && ($parts[1] ?? '') === 'shortcuts') {
             \Shortcut\Routes\getAllShortcuts();
+        } elseif ($method === 'PUT' && ($parts[1] ?? '') === 'shortcuts' && isset($parts[2]) && ($parts[3] ?? '') === 'approve') {
+            \Shortcut\Routes\approveShortcut((int) $parts[2]);
+        } elseif ($method === 'PUT' && ($parts[1] ?? '') === 'shortcuts' && isset($parts[2]) && ($parts[3] ?? '') === 'reject') {
+            \Shortcut\Routes\rejectShortcut((int) $parts[2]);
+        } elseif ($method === 'POST' && ($parts[1] ?? '') === 'shortcuts' && isset($parts[2]) && ($parts[3] ?? '') === 'approve') {
+            \Shortcut\Routes\approveShortcut((int) $parts[2]);
+        } elseif ($method === 'POST' && ($parts[1] ?? '') === 'shortcuts' && isset($parts[2]) && ($parts[3] ?? '') === 'reject') {
+            \Shortcut\Routes\rejectShortcut((int) $parts[2]);
         } elseif ($method === 'DELETE' && ($parts[1] ?? '') === 'shortcuts' && isset($parts[2])) {
             \Shortcut\Routes\deleteShortcut((int) $parts[2]);
         } elseif ($method === 'POST' && ($parts[1] ?? '') === 'shortcuts' && isset($parts[2]) && ($parts[3] ?? '') === 'delete') {

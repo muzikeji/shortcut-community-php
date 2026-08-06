@@ -10,6 +10,7 @@ function dbToFrontend(array $pairs): array {
         'icp_number' => 'icpBeian',
         'seo_title' => 'seoTitle',
         'seo_description' => 'seoDescription',
+        'wechat_bot_token' => 'wechatBotToken',
     ];
     $defaults = [
         'siteName' => '捷径社区',
@@ -18,6 +19,7 @@ function dbToFrontend(array $pairs): array {
         'seoTitle' => '',
         'seoDescription' => '分享和发现实用的 iOS 快捷指令',
         'siteDescription' => 'iOS 快捷指令分享社区',
+        'wechatBotToken' => '',
     ];
     foreach ($map as $dbKey => $jsKey) {
         if (isset($pairs[$dbKey]) && $pairs[$dbKey] !== '') {
@@ -34,6 +36,7 @@ function frontendToDb(array $body): array {
         'icpBeian' => 'icp_number',
         'seoTitle' => 'seo_title',
         'seoDescription' => 'seo_description',
+        'wechatBotToken' => 'wechat_bot_token',
     ];
     $result = [];
     foreach ($map as $jsKey => $dbKey) {

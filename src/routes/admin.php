@@ -212,3 +212,59 @@ function deleteShortcut(int $shortcutId): void {
 
     Response::json(['message' => '删除成功']);
 }
+
+function getPendingShortcuts(): void {
+    $authUser = Auth::requireAdmin();
+    if (!$authUser) Response::forbidden();
+
+    $db = Database::get();
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $limit = max(1, (int) ($_GET['limit'] ?? 20));
+    $offset = ($page - 1) * $limit;
+
+    $count = $db->prepare("SELECT COUNT(*) as cnt FROM shortcuts s LEFT JOIN users u ON s.user_id = u.id WHERE s.status = 'pending'");
+    $count->execute();
+    $total = (int) $count->fetch()['cnt'];
+
+    $stmt = $db->prepare("
+        SELECT s.*, u.username
+        FROM shortcuts s LEFT JOIN users u ON s.user_id = u.id
+        WHERE s.status = 'pending'
+        ORDER BY s.created_at DESC LIMIT ? OFFSET ?
+    ");
+    $stmt->execute([$limit, $offset]);
+
+    Response::json([
+        'shortcuts' => $stmt->fetchAll(),
+        'total' => $total,
+        'totalPages' => max(1, (int) ceil($total / $limit)),
+    ]);
+}
+
+function approveShortcut(int $shortcutId): void {
+    $authUser = Auth::requireAdmin();
+    if (!$authUser) Response::forbidden();
+
+    $db = Database::get();
+    $stmt = $db->prepare("SELECT * FROM shortcuts WHERE id = ? AND status = 'pending'");
+    $stmt->execute([$shortcutId]);
+    $s = $stmt->fetch();
+    if (!$s) Response::error('未找到待审核的投稿', 404);
+
+    $db->prepare("UPDATE shortcuts SET status = 'active' WHERE id = ?")->execute([$shortcutId]);
+    Response::json(['message' => '已通过审核']);
+}
+
+function rejectShortcut(int $shortcutId): void {
+    $authUser = Auth::requireAdmin();
+    if (!$authUser) Response::forbidden();
+
+    $db = Database::get();
+    $stmt = $db->prepare("SELECT * FROM shortcuts WHERE id = ? AND status = 'pending'");
+    $stmt->execute([$shortcutId]);
+    $s = $stmt->fetch();
+    if (!$s) Response::error('未找到待审核的投稿', 404);
+
+    $db->prepare("UPDATE shortcuts SET status = 'removed' WHERE id = ?")->execute([$shortcutId]);
+    Response::json(['message' => '已驳回']);
+}
