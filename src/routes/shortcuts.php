@@ -203,10 +203,16 @@ function createShortcut(): void {
 
     $finalColor = preg_match('/^#[0-9a-fA-F]{6}$/', $color) ? $color : ($meta['color'] ?? '');
 
+    $finalTitle = $meta['name'] ?: $title;
+    if (!$finalTitle) Response::error('无法获取快捷指令名称，请手动填写');
+
+    $isAdmin = ($authUser['role'] ?? '') === 'admin';
+    $status = $isAdmin ? 'active' : 'pending';
+
     $db->prepare('INSERT INTO shortcuts (slug, title, description, category, file_url, file_size, user_id, color, stats, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([
         $finalSlug,
-        $meta['name'] ?: $title,
+        $finalTitle,
         $description,
         $category ?: '其他',
         $url,
@@ -214,7 +220,7 @@ function createShortcut(): void {
         $authUser['id'],
         $finalColor,
         $statsJson,
-        'pending',
+        $status,
     ]);
 
     $shortcutId = $db->lastInsertId();
@@ -225,7 +231,9 @@ function createShortcut(): void {
     $stmt->execute([$shortcutId]);
     $created = $stmt->fetch();
 
-    sendWechatNotify($db, $created, $authUser);
+    if (!$isAdmin) {
+        sendWechatNotify($db, $created, $authUser);
+    }
 
     Response::json(['shortcut' => $created], 201);
 }
