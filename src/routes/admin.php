@@ -67,13 +67,13 @@ function getUsers(): void {
 }
 
 function updateUserRole(int $userId): void {
-    $authUser = Auth::requireAdmin();
+    $authUser = Auth::requireOwner();
     if (!$authUser) Response::forbidden();
 
     $body = json_decode(file_get_contents('php://input'), true);
     if (!is_array($body)) Response::error('无效的请求数据', 400);
     $role = $body['role'] ?? '';
-    if (!in_array($role, ['user', 'admin'])) Response::error('无效的角色');
+    if (!in_array($role, ['user', 'admin', 'owner'])) Response::error('无效的角色');
 
     $db = Database::get();
     $stmt = $db->prepare('SELECT id FROM users WHERE id = ?');
@@ -112,7 +112,7 @@ function banUser(int $userId): void {
     $stmt->execute([$userId]);
     $target = $stmt->fetch();
     if (!$target) Response::notFound();
-    if ($target['role'] === 'admin') Response::error('不能封禁管理员');
+    if ($target['role'] === 'admin' || $target['role'] === 'owner') Response::error('不能封禁管理员或站长');
 
     $db->beginTransaction();
     try {
@@ -131,12 +131,19 @@ function unbanUser(int $userId): void {
     $authUser = Auth::requireAdmin();
     if (!$authUser) Response::forbidden();
 
-    Database::get()->prepare('UPDATE users SET banned = 0 WHERE id = ?')->execute([$userId]);
+    $db = Database::get();
+    $stmt = $db->prepare('SELECT role FROM users WHERE id = ?');
+    $stmt->execute([$userId]);
+    $target = $stmt->fetch();
+    if (!$target) Response::notFound();
+    if ($target['role'] === 'admin' || $target['role'] === 'owner') Response::error('不能操作管理员或站长账号');
+
+    $db->prepare('UPDATE users SET banned = 0 WHERE id = ?')->execute([$userId]);
     Response::json(['message' => '已解封']);
 }
 
 function adminCreateUser(): void {
-    $authUser = Auth::requireAdmin();
+    $authUser = Auth::requireOwner();
     if (!$authUser) Response::forbidden();
 
     $body = json_decode(file_get_contents('php://input'), true);

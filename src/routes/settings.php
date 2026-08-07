@@ -66,7 +66,7 @@ function getPublicSettings(): void {
 }
 
 function getAdminSettings(): void {
-    $authUser = Auth::requireAdmin();
+    $authUser = Auth::requireOwner();
     if (!$authUser) Response::forbidden();
 
     try {
@@ -83,7 +83,7 @@ function getAdminSettings(): void {
 }
 
 function updateSetting(): void {
-    $authUser = Auth::requireAdmin();
+    $authUser = Auth::requireOwner();
     if (!$authUser) Response::forbidden();
 
     $body = json_decode(file_get_contents('php://input'), true);
@@ -113,7 +113,7 @@ function updateSetting(): void {
 }
 
 function updateSiteSettings(): void {
-    $authUser = Auth::requireAdmin();
+    $authUser = Auth::requireOwner();
     if (!$authUser) Response::forbidden();
 
     $body = json_decode(file_get_contents('php://input'), true);

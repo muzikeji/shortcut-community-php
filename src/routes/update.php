@@ -4,7 +4,7 @@ namespace Shortcut\Routes;
 use Shortcut\{Auth, Response};
 
 function checkUpdate(): void {
-    $authUser = Auth::requireAdmin();
+    $authUser = Auth::requireOwner();
     if (!$authUser) Response::forbidden();
 
     $current = getCurrentVersion();
@@ -25,7 +25,7 @@ function checkUpdate(): void {
 }
 
 function doUpdate(): void {
-    $authUser = Auth::requireAdmin();
+    $authUser = Auth::requireOwner();
     if (!$authUser) Response::forbidden();
 
     if (!class_exists('ZipArchive')) {

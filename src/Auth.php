@@ -51,7 +51,13 @@ class Auth {
 
     public static function requireAdmin(): ?array {
         $user = self::requireAuth();
-        if (!$user || ($user['role'] ?? '') !== 'admin') return null;
+        if (!$user || !in_array(($user['role'] ?? ''), ['admin', 'owner'])) return null;
+        return $user;
+    }
+
+    public static function requireOwner(): ?array {
+        $user = self::requireAuth();
+        if (!$user || ($user['role'] ?? '') !== 'owner') return null;
         return $user;
     }
 }
