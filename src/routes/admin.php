@@ -122,6 +122,7 @@ function banUser(int $userId): void {
         $db->commit();
     } catch (\Exception $e) {
         $db->rollBack();
+        error_log('banUser failed: ' . $e->getMessage());
         Response::error('操作失败，请重试', 500);
     }
     Response::json(['message' => '已封禁']);
@@ -235,6 +236,7 @@ function deleteShortcut(int $shortcutId): void {
         $db->commit();
     } catch (\Exception $e) {
         $db->rollBack();
+        error_log('deleteShortcut failed: ' . $e->getMessage());
         Response::error('操作失败，请重试', 500);
     }
 

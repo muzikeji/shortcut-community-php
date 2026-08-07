@@ -59,6 +59,7 @@ function getPublicSettings(): void {
         unset($result['wechatBotToken']);
         Response::json($result);
     } catch (\Exception $e) {
+        error_log('getPublicSettings failed: ' . $e->getMessage());
         $result = dbToFrontend([]);
         unset($result['wechatBotToken']);
         Response::json($result);
@@ -78,6 +79,7 @@ function getAdminSettings(): void {
         }
         Response::json(dbToFrontend($pairs));
     } catch (\Exception $e) {
+        error_log('getAdminSettings failed: ' . $e->getMessage());
         Response::json(dbToFrontend([]));
     }
 }

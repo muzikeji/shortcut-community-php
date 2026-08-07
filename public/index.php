@@ -3,7 +3,25 @@ define('ROOT_DIR', dirname(__DIR__));
 
 require_once ROOT_DIR . '/vendor/autoload.php';
 
+// Load .env
+$envFile = ROOT_DIR . '/.env';
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#') continue;
+        $parts = explode('=', $line, 2);
+        if (count($parts) === 2) {
+            putenv(trim($parts[0]) . '=' . trim($parts[1], " \t\n\r\0\x0B\"'"));
+        }
+    }
+}
+
 use Shortcut\{Database, Auth, Response};
+
+if (($jwtSecret = getenv('JWT_SECRET')) && $jwtSecret !== '') {
+    Auth::setSecret($jwtSecret);
+}
 
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');

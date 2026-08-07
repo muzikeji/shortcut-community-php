@@ -422,6 +422,7 @@ function sendWechatNotify(PDO $db, array $shortcut, array $authUser): void {
 
         $token = $row['value'];
     } catch (\Exception $e) {
+        error_log('sendWechatNotify token read failed: ' . $e->getMessage());
         return;
     }
 
