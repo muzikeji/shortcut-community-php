@@ -12,14 +12,14 @@ if (file_exists($envFile)) {
         if ($line === '' || $line[0] === '#') continue;
         $parts = explode('=', $line, 2);
         if (count($parts) === 2) {
-            putenv(trim($parts[0]) . '=' . trim($parts[1], " \t\n\r\0\x0B\"'"));
+            setenv(trim($parts[0]), trim($parts[1], " \t\n\r\0\x0B\"'"));
         }
     }
 }
 
 use Shortcut\{Database, Auth, Response};
 
-if (($jwtSecret = getenv('JWT_SECRET')) && $jwtSecret !== '') {
+if (($jwtSecret = env('JWT_SECRET')) && $jwtSecret !== '') {
     Auth::setSecret($jwtSecret);
 }
 

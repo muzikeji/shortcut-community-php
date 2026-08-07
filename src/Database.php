@@ -11,14 +11,14 @@ class Database {
     private static ?string $pass = null;
 
     public static function init(string $baseDir): void {
-        $driver = getenv('DB_DRIVER') ?: 'sqlite';
+        $driver = env('DB_DRIVER') ?: 'sqlite';
 
         if ($driver === 'mysql') {
-            $host = getenv('DB_HOST') ?: 'localhost';
-            $port = getenv('DB_PORT') ?: '3306';
-            $name = getenv('DB_NAME') ?: 'shortcut';
-            self::$user = getenv('DB_USER') ?: 'root';
-            self::$pass = getenv('DB_PASS') ?: '';
+            $host = env('DB_HOST') ?: 'localhost';
+            $port = env('DB_PORT') ?: '3306';
+            $name = env('DB_NAME') ?: 'shortcut';
+            self::$user = env('DB_USER') ?: 'root';
+            self::$pass = env('DB_PASS') ?: '';
             self::$dns = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
         } else {
             $dbPath = $baseDir . '/data/database.sqlite';

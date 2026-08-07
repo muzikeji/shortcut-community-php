@@ -79,7 +79,7 @@ function writeEnv(string $driver, array $mysqlConfig = []): bool {
     $envFile = ROOT_DIR . '/.env';
     $lines = [];
 
-    $jwtSecret = getenv('JWT_SECRET') ?: 'shortcut-community-jwt-secret-change-me';
+    $jwtSecret = env('JWT_SECRET') ?: 'shortcut-community-jwt-secret-change-me';
     $lines[] = 'JWT_SECRET=' . $jwtSecret;
 
     $lines[] = 'DB_DRIVER=' . $driver;
@@ -105,14 +105,14 @@ function loadEnv(): void {
             if ($line === '' || $line[0] === '#') continue;
             $parts = explode('=', $line, 2);
             if (count($parts) === 2) {
-                putenv(trim($parts[0]) . '=' . trim($parts[1], " \t\n\r\0\x0B\"'"));
+                setenv(trim($parts[0]), trim($parts[1], " \t\n\r\0\x0B\"'"));
             }
         }
     }
 }
 
 function initDatabase(): string|false {
-    $driver = getenv('DB_DRIVER') ?: 'sqlite';
+    $driver = env('DB_DRIVER') ?: 'sqlite';
 
     if ($driver === 'mysql') {
         if (!extension_loaded('pdo_mysql')) {
@@ -120,11 +120,11 @@ function initDatabase(): string|false {
         }
 
         try {
-            $host = getenv('DB_HOST') ?: 'localhost';
-            $port = getenv('DB_PORT') ?: '3306';
-            $name = getenv('DB_NAME') ?: 'shortcut';
-            $user = getenv('DB_USER') ?: 'root';
-            $pass = getenv('DB_PASS') ?: '';
+            $host = env('DB_HOST') ?: 'localhost';
+            $port = env('DB_PORT') ?: '3306';
+            $name = env('DB_NAME') ?: 'shortcut';
+            $user = env('DB_USER') ?: 'root';
+            $pass = env('DB_PASS') ?: '';
 
             $dsn = "mysql:host={$host};port={$port};charset=utf8mb4";
             $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
@@ -218,12 +218,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     runMigrations();
 
     if (hasAdmin()) {
-        $driver = getenv('DB_DRIVER') ?: 'sqlite';
+        $driver = env('DB_DRIVER') ?: 'sqlite';
         installHtml('系统已安装完成！（' . strtoupper($driver) . '）<p>如果您需要重置，请手动清空数据库后重新访问此页面。</p>', 'success', true);
         return;
     }
 
-    $currentDriver = getenv('DB_DRIVER') ?: 'sqlite';
+    $currentDriver = env('DB_DRIVER') ?: 'sqlite';
     $msg = '环境检查通过，请配置管理员账号：';
     installHtml($msg, 'info');
     ?>
@@ -241,22 +241,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             <div class="mysql-fields <?= $currentDriver === 'mysql' ? 'visible' : '' ?>" id="mysqlFields">
                 <div class="field-row">
                     <label>主机
-                        <input name="db_host" value="<?= htmlspecialchars(getenv('DB_HOST') ?: 'localhost') ?>" placeholder="localhost">
+                        <input name="db_host" value="<?= htmlspecialchars(env('DB_HOST') ?: 'localhost') ?>" placeholder="localhost">
                     </label>
                     <label>端口
-                        <input name="db_port" value="<?= htmlspecialchars(getenv('DB_PORT') ?: '3306') ?>" placeholder="3306">
+                        <input name="db_port" value="<?= htmlspecialchars(env('DB_PORT') ?: '3306') ?>" placeholder="3306">
                     </label>
                 </div>
                 <div class="field-row">
                     <label>数据库名
-                        <input name="db_name" value="<?= htmlspecialchars(getenv('DB_NAME') ?: 'shortcut') ?>" placeholder="shortcut">
+                        <input name="db_name" value="<?= htmlspecialchars(env('DB_NAME') ?: 'shortcut') ?>" placeholder="shortcut">
                     </label>
                     <label>用户名
-                        <input name="db_user" value="<?= htmlspecialchars(getenv('DB_USER') ?: 'root') ?>" placeholder="root">
+                        <input name="db_user" value="<?= htmlspecialchars(env('DB_USER') ?: 'root') ?>" placeholder="root">
                     </label>
                 </div>
                 <label>密码
-                    <input name="db_pass" type="password" value="<?= htmlspecialchars(getenv('DB_PASS') ?: '') ?>" placeholder="数据库密码">
+                    <input name="db_pass" type="password" value="<?= htmlspecialchars(env('DB_PASS') ?: '') ?>" placeholder="数据库密码">
                 </label>
             </div>
         </div>
