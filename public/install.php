@@ -163,15 +163,15 @@ function createAdmin(string $username, string $email, string $password): string|
 
         $exists = $db->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
         $exists->execute([$username, $email]);
-        if ($exists->fetch()) return '管理员账号已存在';
+        if ($exists->fetch()) return '站长账号已存在';
 
         $hash = password_hash($password, PASSWORD_BCRYPT);
         $db->prepare('INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)')
-           ->execute([$username, $email, $hash, 'admin']);
+           ->execute([$username, $email, $hash, 'owner']);
 
         return false;
     } catch (PDOException $e) {
-        return '创建管理员失败: ' . $e->getMessage();
+        return '创建站长账号失败: ' . $e->getMessage();
     }
 }
 
@@ -217,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
         $dbFile = ROOT_DIR . '/data/database.sqlite';
         $db = new PDO("sqlite:{$dbFile}");
-        $adminCount = $db->query("SELECT COUNT(*) as cnt FROM users WHERE role = 'admin'")->fetch()['cnt'];
+        $adminCount = $db->query("SELECT COUNT(*) as cnt FROM users WHERE role IN ('admin', 'owner')")->fetch()['cnt'];
     } catch (\Exception $e) {
         installHtml('❌ 数据库读取失败', 'error');
         return;
@@ -228,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         return;
     }
 
-    $msg = '✅ 环境检查通过，数据库已就绪。<p>请创建管理员账号：</p>';
+    $msg = '✅ 环境检查通过，数据库已就绪。<p>请创建站长账号：</p>';
     installHtml($msg, 'info');
     ?>
     <form method="post">
@@ -269,5 +269,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         return;
     }
 
-    installHtml('✅ 安装完成！管理员账号 <strong>' . htmlspecialchars($username) . '</strong> 已创建。<p>请妥善保管您的登录信息。</p>', 'success', true);
+    installHtml('✅ 安装完成！站长账号 <strong>' . htmlspecialchars($username) . '</strong> 已创建。<p>请妥善保管您的登录信息。</p>', 'success', true);
 }
