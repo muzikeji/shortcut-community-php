@@ -6,6 +6,7 @@ use PDO;
 
 function registerUser(): void {
     $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) Response::error('无效的请求数据', 400);
     $username = trim($body['username'] ?? '');
     $email = trim($body['email'] ?? '');
     $password = $body['password'] ?? '';
@@ -44,6 +45,7 @@ function registerUser(): void {
 
 function loginUser(): void {
     $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) Response::error('无效的请求数据', 400);
     $username = trim($body['username'] ?? '');
     $password = $body['password'] ?? '';
 
@@ -112,6 +114,7 @@ function updateProfile(): void {
     if (!$authUser) Response::unauthorized();
 
     $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) Response::error('无效的请求数据', 400);
     $username = trim($body['username'] ?? '');
     $email = trim($body['email'] ?? '');
     $bio = isset($body['bio']) ? trim($body['bio']) : null;
@@ -159,6 +162,7 @@ function updatePassword(): void {
     if (!$authUser) Response::unauthorized();
 
     $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) Response::error('无效的请求数据', 400);
     $current = $body['currentPassword'] ?? '';
     $newPass = $body['newPassword'] ?? '';
 

@@ -71,10 +71,15 @@ function updateUserRole(int $userId): void {
     if (!$authUser) Response::forbidden();
 
     $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) Response::error('无效的请求数据', 400);
     $role = $body['role'] ?? '';
     if (!in_array($role, ['user', 'admin'])) Response::error('无效的角色');
 
     $db = Database::get();
+    $stmt = $db->prepare('SELECT id FROM users WHERE id = ?');
+    $stmt->execute([$userId]);
+    if (!$stmt->fetch()) Response::notFound();
+
     $db->prepare('UPDATE users SET role = ? WHERE id = ? AND id != ?')
        ->execute([$role, $userId, $authUser['id']]);
 
@@ -86,10 +91,11 @@ function toggleBanUser(int $userId): void {
     if (!$authUser) Response::forbidden();
 
     $body = json_decode(file_get_contents('php://input'), true);
-    $banned = $body['banned'] ? 1 : 0;
+    if (!is_array($body)) Response::error('无效的请求数据', 400);
+    $banned = !empty($body['banned']) && $body['banned'] !== 'false' ? 1 : 0;
 
     $db = Database::get();
-    if ($userId == $authUser['id']) Response::error('不能操作自己的账号');
+    if ($userId === $authUser['id']) Response::error('不能操作自己的账号');
 
     $db->prepare('UPDATE users SET banned = ? WHERE id = ?')->execute([$banned, $userId]);
 
@@ -99,7 +105,7 @@ function toggleBanUser(int $userId): void {
 function banUser(int $userId): void {
     $authUser = Auth::requireAdmin();
     if (!$authUser) Response::forbidden();
-    if ($userId == $authUser['id']) Response::error('不能操作自己的账号');
+    if ($userId === $authUser['id']) Response::error('不能操作自己的账号');
 
     $db = Database::get();
     $stmt = $db->prepare('SELECT role FROM users WHERE id = ?');
@@ -108,9 +114,16 @@ function banUser(int $userId): void {
     if (!$target) Response::notFound();
     if ($target['role'] === 'admin') Response::error('不能封禁管理员');
 
-    $db->prepare('UPDATE users SET banned = 1 WHERE id = ?')->execute([$userId]);
-    $db->prepare("UPDATE shortcuts SET status = 'removed' WHERE user_id = ? AND status = 'active'")
-       ->execute([$userId]);
+    $db->beginTransaction();
+    try {
+        $db->prepare('UPDATE users SET banned = 1 WHERE id = ?')->execute([$userId]);
+        $db->prepare("UPDATE shortcuts SET status = 'removed' WHERE user_id = ? AND status = 'active'")
+           ->execute([$userId]);
+        $db->commit();
+    } catch (\Exception $e) {
+        $db->rollBack();
+        Response::error('操作失败，请重试', 500);
+    }
     Response::json(['message' => '已封禁']);
 }
 
@@ -127,6 +140,7 @@ function adminCreateUser(): void {
     if (!$authUser) Response::forbidden();
 
     $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) Response::error('无效的请求数据', 400);
     $username = trim($body['username'] ?? '');
     $email = trim($body['email'] ?? '');
     $password = $body['password'] ?? '';
@@ -205,10 +219,17 @@ function deleteShortcut(int $shortcutId): void {
     $s = $shortcut->fetch();
     if (!$s) Response::notFound();
 
-    $db->prepare('DELETE FROM comments WHERE shortcut_id = ?')->execute([$shortcutId]);
-    $db->prepare('DELETE FROM likes WHERE shortcut_id = ?')->execute([$shortcutId]);
-    $db->prepare('DELETE FROM shortcut_versions WHERE shortcut_id = ?')->execute([$shortcutId]);
-    $db->prepare('DELETE FROM shortcuts WHERE id = ?')->execute([$shortcutId]);
+    $db->beginTransaction();
+    try {
+        $db->prepare('DELETE FROM comments WHERE shortcut_id = ?')->execute([$shortcutId]);
+        $db->prepare('DELETE FROM likes WHERE shortcut_id = ?')->execute([$shortcutId]);
+        $db->prepare('DELETE FROM shortcut_versions WHERE shortcut_id = ?')->execute([$shortcutId]);
+        $db->prepare('DELETE FROM shortcuts WHERE id = ?')->execute([$shortcutId]);
+        $db->commit();
+    } catch (\Exception $e) {
+        $db->rollBack();
+        Response::error('操作失败，请重试', 500);
+    }
 
     Response::json(['message' => '删除成功']);
 }

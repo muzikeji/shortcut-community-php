@@ -38,7 +38,7 @@ function decodeIconColor($raw): string {
 }
 
 function isValidShortcutUrl(string $url): bool {
-    return (bool) preg_match('#^https?://(www\.)?icloud\.com/shortcuts/[a-zA-Z0-9]+#', $url);
+    return (bool) preg_match('#^https?://(www\.)?icloud\.com/shortcuts/[a-zA-Z0-9]+$#', $url);
 }
 
 function getShortcuts(): void {
@@ -148,30 +148,7 @@ function findShortcutWithUser(PDO $db, string $value): ?array {
 
 function fetchName(): void {
     $body = json_decode(file_get_contents('php://input'), true);
-    $url = $body['url'] ?? '';
-    if (!$url || !isValidShortcutUrl($url)) {
-        Response::error('无效的 iCloud 快捷指令链接');
-    }
-    $meta = fetchShortcutMeta($url);
-    if (!$meta || !$meta['name']) {
-        Response::error('未能获取快捷指令名称', 404);
-    }
-    $stats = null;
-    if ($meta['shortcutUrl']) {
-        $stats = PlistParser::parseShortcutInfo($meta['shortcutUrl']);
-    }
-    Response::json([
-        'name' => $meta['name'],
-        'color' => $meta['color'],
-        'stats' => $stats,
-    ]);
-}
-
-function createShortcut(): void {
-    $authUser = Auth::requireAuth();
-    if (!$authUser) Response::unauthorized();
-
-    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) Response::error('无效的请求数据', 400);
     $url = $body['url'] ?? '';
     $title = trim($body['title'] ?? '');
     $description = trim($body['description'] ?? '');
@@ -248,6 +225,7 @@ function updateShortcut(string $idOrSlug): void {
     if ($shortcut['user_id'] != $authUser['id']) Response::forbidden();
 
     $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) Response::error('无效的请求数据', 400);
     $updates = [];
     $params = [];
     foreach (['title', 'description', 'category'] as $field) {
@@ -378,6 +356,7 @@ function addVersion(string $idOrSlug): void {
     }
 
     $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) Response::error('无效的请求数据', 400);
     $url = $body['url'] ?? '';
     $note = $body['version_note'] ?? '';
     if (!$url) Response::error('请提供新的快捷指令链接');

@@ -144,6 +144,9 @@ function routeApi(string $path): void {
         require_once ROOT_DIR . '/src/routes/admin.php';
         if ($method === 'GET' && ($parts[1] ?? '') === 'dashboard') {
             \Shortcut\Routes\getDashboard();
+        } elseif ($method === 'GET' && ($parts[1] ?? '') === 'settings') {
+            require_once ROOT_DIR . '/src/routes/settings.php';
+            \Shortcut\Routes\getAdminSettings();
         } elseif ($method === 'GET' && ($parts[1] ?? '') === 'users' && !isset($parts[2])) {
             \Shortcut\Routes\getUsers();
         } elseif ($method === 'POST' && ($parts[1] ?? '') === 'users') {

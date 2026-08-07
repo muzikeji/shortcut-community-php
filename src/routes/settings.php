@@ -55,9 +55,13 @@ function getPublicSettings(): void {
         while ($row = $stmt->fetch()) {
             $pairs[$row['key']] = $row['value'];
         }
-        Response::json(dbToFrontend($pairs));
+        $result = dbToFrontend($pairs);
+        unset($result['wechatBotToken']);
+        Response::json($result);
     } catch (\Exception $e) {
-        Response::json(dbToFrontend([]));
+        $result = dbToFrontend([]);
+        unset($result['wechatBotToken']);
+        Response::json($result);
     }
 }
 
@@ -65,7 +69,17 @@ function getAdminSettings(): void {
     $authUser = Auth::requireAdmin();
     if (!$authUser) Response::forbidden();
 
-    getPublicSettings();
+    try {
+        $db = Database::get();
+        $stmt = $db->query('SELECT `key`, `value` FROM settings');
+        $pairs = [];
+        while ($row = $stmt->fetch()) {
+            $pairs[$row['key']] = $row['value'];
+        }
+        Response::json(dbToFrontend($pairs));
+    } catch (\Exception $e) {
+        Response::json(dbToFrontend([]));
+    }
 }
 
 function updateSetting(): void {
@@ -73,6 +87,7 @@ function updateSetting(): void {
     if (!$authUser) Response::forbidden();
 
     $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) Response::error('无效的请求数据', 400);
     $db = Database::get();
 
     if (isset($body['key']) && isset($body['value'])) {
@@ -102,6 +117,7 @@ function updateSiteSettings(): void {
     if (!$authUser) Response::forbidden();
 
     $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) Response::error('无效的请求数据', 400);
     $db = Database::get();
 
     $dbPairs = frontendToDb($body);
