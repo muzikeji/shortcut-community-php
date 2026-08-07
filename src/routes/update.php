@@ -69,10 +69,6 @@ function doUpdate(): void {
                 'max_redirects' => 5,
                 'header' => "User-Agent: PHP-Shortcut-Updater\r\n",
             ],
-            'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-            ],
         ]);
         $zipContent = file_get_contents($latest['downloadUrl'], false, $ctx);
         if (!$zipContent || strlen($zipContent) < 1024) {
@@ -175,7 +171,7 @@ function doUpdate(): void {
 }
 
 function getCurrentVersion(): string {
-    $rootDir = defined('ROOT_DIR') ? ROOT_DIR : dirname(__DIR__);
+    $rootDir = defined('ROOT_DIR') ? ROOT_DIR : dirname(__DIR__, 2);
     $verFile = $rootDir . '/VERSION';
     if (file_exists($verFile)) {
         return trim(file_get_contents($verFile));

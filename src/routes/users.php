@@ -53,10 +53,31 @@ function loginUser(): void {
         Response::error('请输入用户名和密码');
     }
 
+    // Rate limit: 5 attempts per 15 minutes per IP
     $db = Database::get();
-    $stmt = $db->prepare('SELECT * FROM users WHERE username = ? OR email = ?');
-    $stmt->execute([$username, $username]);
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+    $cutoff = time() - 900;
+    $db->prepare('DELETE FROM login_attempts WHERE attempt_time < ?')->execute([$cutoff]);
+    $db->prepare('INSERT INTO login_attempts (ip, attempt_time) VALUES (?, ?)')->execute([$ip, time()]);
+    $attempts = $db->prepare('SELECT COUNT(*) as cnt FROM login_attempts WHERE ip = ? AND attempt_time > ?');
+    $attempts->execute([$ip, $cutoff]);
+    if ((int) $attempts->fetch()['cnt'] > 5) {
+        Response::error('登录尝试过于频繁，请 15 分钟后再试', 429);
+    }
+
+    $stmt = $db->prepare('SELECT * FROM users WHERE username = ?');
+    $stmt->execute([$username]);
     $user = $stmt->fetch();
+    if (!$user) {
+        $stmt = $db->prepare('SELECT * FROM users WHERE email = ?');
+        $stmt->execute([$username]);
+        $user = $stmt->fetch();
+    }
+    if (!$user) {
+        $stmt = $db->prepare('SELECT * FROM users WHERE email = ?');
+        $stmt->execute([$username]);
+        $user = $stmt->fetch();
+    }
 
     if (!$user || !password_verify($password, $user['password'])) {
         Response::error('用户名或密码错误', 401);

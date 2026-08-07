@@ -31,7 +31,7 @@ function getUsers(): void {
     $page = max(1, (int) ($_GET['page'] ?? 1));
     $limit = max(1, (int) ($_GET['limit'] ?? 20));
     $offset = ($page - 1) * $limit;
-    $search = $_GET['search'] ?? '';
+    $search = mb_substr(trim($_GET['search'] ?? ''), 0, 100);
 
     $where = '';
     $params = [];
@@ -171,7 +171,7 @@ function getAllShortcuts(): void {
     $db = Database::get();
     $page = max(1, (int) ($_GET['page'] ?? 1));
     $limit = max(1, (int) ($_GET['limit'] ?? 20));
-    $search = $_GET['search'] ?? '';
+    $search = mb_substr(trim($_GET['search'] ?? ''), 0, 100);
     $status = $_GET['status'] ?? '';
     $offset = ($page - 1) * $limit;
 

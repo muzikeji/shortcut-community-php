@@ -101,6 +101,11 @@ class Database {
                 value TEXT NOT NULL DEFAULT \'\'
             );
 
+            CREATE TABLE IF NOT EXISTS login_attempts (
+                ip TEXT NOT NULL,
+                attempt_time INTEGER NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_shortcuts_user ON shortcuts(user_id);
             CREATE INDEX IF NOT EXISTS idx_shortcuts_created ON shortcuts(created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_shortcuts_slug ON shortcuts(slug);

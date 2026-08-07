@@ -47,7 +47,7 @@ function getShortcuts(): void {
     $page = max(1, (int) ($_GET['page'] ?? 1));
     $limit = max(1, min(100, (int) ($_GET['limit'] ?? 20)));
     $offset = ($page - 1) * $limit;
-    $search = $_GET['search'] ?? '';
+    $search = mb_substr(trim($_GET['search'] ?? ''), 0, 100);
     $sort = $_GET['sort'] ?? '';
     $userId = $_GET['userId'] ?? '';
     $includeRemoved = !empty($_GET['includeRemoved']);
