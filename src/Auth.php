@@ -42,7 +42,21 @@ class Auth {
     public static function requireAuth(): ?array {
         $token = self::getTokenFromHeader();
         if (!$token) return null;
-        return self::verifyToken($token);
+
+        $payload = self::verifyToken($token);
+        if (!$payload) return null;
+
+        try {
+            $db = Database::get();
+            $stmt = $db->prepare('SELECT id, username, email, avatar, bio, role, banned FROM users WHERE id = ?');
+            $stmt->execute([$payload['id']]);
+            $user = $stmt->fetch();
+            if (!$user) return null;
+            return $user;
+        } catch (\PDOException $e) {
+            error_log('Auth: failed to query user: ' . $e->getMessage());
+            return null;
+        }
     }
 
     public static function optionalAuth(): ?array {
