@@ -51,7 +51,7 @@ function checkPhpVersion(): string|false {
 
 function checkExtensions(): string|false {
     $missing = [];
-    if (!extension_loaded('pdo_sqlite')) $missing[] = 'PDO SQLite';
+    if (!extension_loaded('pdo_sqlite') && !extension_loaded('pdo_mysql')) $missing[] = 'PDO (至少需要 SQLite 或 MySQL)';
     if (!extension_loaded('json')) $missing[] = 'JSON';
     if (!extension_loaded('mbstring')) $missing[] = 'mbstring';
     if (!extension_loaded('openssl')) $missing[] = 'OpenSSL';
@@ -64,102 +64,55 @@ function checkComposerDeps(): string|false {
     return 'Composer 依赖未安装，请运行 composer install';
 }
 
-function createDatabase(): string|false {
+function initDatabase(): string|false {
+    $driver = getenv('DB_DRIVER') ?: 'sqlite';
+
+    if ($driver === 'mysql') {
+        try {
+            $host = getenv('DB_HOST') ?: 'localhost';
+            $port = getenv('DB_PORT') ?: '3306';
+            $name = getenv('DB_NAME') ?: 'shortcut';
+            $user = getenv('DB_USER') ?: 'root';
+            $pass = getenv('DB_PASS') ?: '';
+
+            $dsn = "mysql:host={$host};port={$port};charset=utf8mb4";
+            $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+            $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$name}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+
+            return false;
+        } catch (PDOException $e) {
+            return 'MySQL 连接失败: ' . $e->getMessage();
+        }
+    }
+
     $dataDir = ROOT_DIR . '/data';
     if (!is_dir($dataDir)) {
         if (!mkdir($dataDir, 0755, true)) return '无法创建 data/ 目录';
     }
     if (!is_writable($dataDir)) return 'data/ 目录不可写';
 
-    $dbFile = $dataDir . '/database.sqlite';
     try {
-        $db = new PDO("sqlite:{$dbFile}");
-        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-        $db->exec("CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL UNIQUE,
-            email TEXT NOT NULL UNIQUE,
-            password TEXT NOT NULL,
-            avatar TEXT DEFAULT '',
-            bio TEXT DEFAULT '',
-            role TEXT DEFAULT 'user',
-            banned INTEGER DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )");
-
-        $db->exec("CREATE TABLE IF NOT EXISTS shortcuts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            slug TEXT UNIQUE NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT DEFAULT '',
-            category TEXT DEFAULT '其他',
-            file_url TEXT NOT NULL,
-            file_size INTEGER DEFAULT 0,
-            download_count INTEGER DEFAULT 0,
-            like_count INTEGER DEFAULT 0,
-            comment_count INTEGER DEFAULT 0,
-            user_id INTEGER NOT NULL,
-            color TEXT DEFAULT '',
-            stats TEXT DEFAULT '',
-            status TEXT DEFAULT 'active',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        )");
-
-        $db->exec("CREATE TABLE IF NOT EXISTS likes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            shortcut_id INTEGER NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, shortcut_id)
-        )");
-
-        $db->exec("CREATE TABLE IF NOT EXISTS comments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            shortcut_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            content TEXT NOT NULL,
-            parent_id INTEGER,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (shortcut_id) REFERENCES shortcuts(id),
-            FOREIGN KEY (user_id) REFERENCES users(id),
-            FOREIGN KEY (parent_id) REFERENCES comments(id)
-        )");
-
-        $db->exec("CREATE TABLE IF NOT EXISTS shortcut_versions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            shortcut_id INTEGER NOT NULL,
-            url TEXT NOT NULL,
-            version_note TEXT DEFAULT '',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (shortcut_id) REFERENCES shortcuts(id)
-        )");
-
-        $db->exec("CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT DEFAULT ''
-        )");
-
-        $db->exec("CREATE INDEX IF NOT EXISTS idx_shortcuts_user ON shortcuts(user_id)");
-        $db->exec("CREATE INDEX IF NOT EXISTS idx_shortcuts_created ON shortcuts(created_at DESC)");
-        $db->exec("CREATE INDEX IF NOT EXISTS idx_shortcuts_slug ON shortcuts(slug)");
-        $db->exec("CREATE INDEX IF NOT EXISTS idx_likes_shortcut ON likes(shortcut_id)");
-        $db->exec("CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id)");
-        $db->exec("CREATE INDEX IF NOT EXISTS idx_comments_shortcut ON comments(shortcut_id)");
-        $db->exec("CREATE INDEX IF NOT EXISTS idx_versions_shortcut ON shortcut_versions(shortcut_id)");
-
+        $dbFile = $dataDir . '/database.sqlite';
+        new PDO("sqlite:{$dbFile}", null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
         return false;
     } catch (PDOException $e) {
-        return '数据库创建失败: ' . $e->getMessage();
+        return 'SQLite 初始化失败: ' . $e->getMessage();
     }
 }
 
-function createAdmin(string $username, string $email, string $password): string|false {
-    $dbFile = ROOT_DIR . '/data/database.sqlite';
+function hasAdmin(): bool {
     try {
-        $db = new PDO("sqlite:{$dbFile}");
-        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $db = Shortcut\Database::get();
+        $stmt = $db->query("SELECT COUNT(*) as cnt FROM users WHERE role IN ('admin', 'owner')");
+        return (int) $stmt->fetch()['cnt'] > 0;
+    } catch (\Exception $e) {
+        return false;
+    }
+}
+
+function createOwner(string $username, string $email, string $password): string|false {
+    try {
+        $db = Shortcut\Database::get();
 
         $exists = $db->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
         $exists->execute([$username, $email]);
@@ -176,59 +129,59 @@ function createAdmin(string $username, string $email, string $password): string|
 }
 
 function runMigrations(): void {
-    $dbFile = ROOT_DIR . '/data/database.sqlite';
     try {
-        $db = new PDO("sqlite:{$dbFile}");
-        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-        try { $db->exec("ALTER TABLE shortcuts ADD COLUMN stats TEXT DEFAULT ''"); } catch (\Exception $e) {}
-        try { $db->exec("ALTER TABLE shortcuts ADD COLUMN status TEXT DEFAULT 'active'"); } catch (\Exception $e) {}
-        try { $db->exec("ALTER TABLE shortcuts ADD COLUMN color TEXT DEFAULT '#000000'"); } catch (\Exception $e) {}
+        $db = Shortcut\Database::get();
+        if (!Shortcut\Database::isMySQL()) {
+            try { $db->exec("ALTER TABLE shortcuts ADD COLUMN stats TEXT DEFAULT ''"); } catch (\Exception $e) {}
+            try { $db->exec("ALTER TABLE shortcuts ADD COLUMN status TEXT DEFAULT 'active'"); } catch (\Exception $e) {}
+            try { $db->exec("ALTER TABLE shortcuts ADD COLUMN color TEXT DEFAULT '#000000'"); } catch (\Exception $e) {}
+        }
     } catch (\Exception $e) {}
+}
+
+// ===== Main flow =====
+
+require_once ROOT_DIR . '/vendor/autoload.php';
+
+// Load .env
+$envFile = ROOT_DIR . '/.env';
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#') continue;
+        $parts = explode('=', $line, 2);
+        if (count($parts) === 2) {
+            putenv(trim($parts[0]) . '=' . trim($parts[1], " \t\n\r\0\x0B\"'"));
+        }
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $error = checkPhpVersion();
-    if ($error) { installHtml("❌ {$error}", 'error'); return; }
+    if ($error) { installHtml($error, 'error'); return; }
     $error = checkExtensions();
-    if ($error) { installHtml("❌ {$error}", 'error'); return; }
-
-    $created = false;
-    $error = createDatabase();
-    if ($error && strpos($error, '数据库创建失败') === 0) {
-        installHtml("❌ {$error}", 'error');
-        return;
-    }
-
-    if ($error && strpos($error, 'Composer 依赖未安装') === 0) {
-        installHtml($error .
-            '<p>请在终端中运行：<br><code>cd ' . ROOT_DIR . ' && composer install</code></p>', 'warning');
-        return;
-    }
-
+    if ($error) { installHtml($error, 'error'); return; }
     $depsError = checkComposerDeps();
     if ($depsError) {
         installHtml('Composer 依赖未安装，请运行：<br><code>cd ' . ROOT_DIR . ' && composer install</code>', 'warning');
         return;
     }
 
+    $error = initDatabase();
+    if ($error) { installHtml($error, 'error'); return; }
+
+    Shortcut\Database::init(ROOT_DIR);
+    Shortcut\Database::get(); // auto-creates tables
     runMigrations();
 
-    try {
-        $dbFile = ROOT_DIR . '/data/database.sqlite';
-        $db = new PDO("sqlite:{$dbFile}");
-        $adminCount = $db->query("SELECT COUNT(*) as cnt FROM users WHERE role IN ('admin', 'owner')")->fetch()['cnt'];
-    } catch (\Exception $e) {
-        installHtml('❌ 数据库读取失败', 'error');
+    if (hasAdmin()) {
+        installHtml('系统已安装完成！' . '<p>如果您需要重置，请手动清空数据库后重新访问此页面。</p>', 'success', true);
         return;
     }
 
-    if ((int) $adminCount > 0) {
-        installHtml('✅ 系统已安装完成！' . '<p>如果您需要重置，请删除 data/database.sqlite 后重新访问此页面。</p>', 'success', true);
-        return;
-    }
-
-    $msg = '✅ 环境检查通过，数据库已就绪。<p>请创建站长账号：</p>';
+    $driver = getenv('DB_DRIVER') ?: 'sqlite';
+    $msg = '环境检查通过，数据库已就绪 (' . strtoupper($driver) . ')。<p>请创建站长账号：</p>';
     installHtml($msg, 'info');
     ?>
     <form method="post">
@@ -254,20 +207,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     if (mb_strlen($username) < 2) {
-        installHtml('❌ 用户名至少需要 2 个字符', 'error'); return;
+        installHtml('用户名至少需要 2 个字符', 'error'); return;
     }
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        installHtml('❌ 请输入有效的邮箱地址', 'error'); return;
+        installHtml('请输入有效的邮箱地址', 'error'); return;
     }
     if (strlen($password) < 6) {
-        installHtml('❌ 密码至少需要 6 个字符', 'error'); return;
+        installHtml('密码至少需要 6 个字符', 'error'); return;
     }
 
-    $error = createAdmin($username, $email, $password);
+    Shortcut\Database::init(ROOT_DIR);
+    Shortcut\Database::get();
+
+    $error = createOwner($username, $email, $password);
     if ($error) {
-        installHtml("❌ {$error}", 'error');
+        installHtml($error, 'error');
         return;
     }
 
-    installHtml('✅ 安装完成！站长账号 <strong>' . htmlspecialchars($username) . '</strong> 已创建。<p>请妥善保管您的登录信息。</p>', 'success', true);
+    installHtml('安装完成！站长账号 <strong>' . htmlspecialchars($username) . '</strong> 已创建。<p>请妥善保管您的登录信息。</p>', 'success', true);
 }

@@ -93,15 +93,22 @@ function updateSetting(): void {
     $db = Database::get();
 
     if (isset($body['key']) && isset($body['value'])) {
-        $db->prepare('INSERT INTO settings (`key`, `value`) VALUES (?, ?)
-            ON CONFLICT(`key`) DO UPDATE SET `value` = excluded.`value`')
-           ->execute([$body['key'], $body['value']]);
-    } else {
-        $dbPairs = frontendToDb($body);
-        foreach ($dbPairs as $key => $value) {
+        if (Database::isMySQL()) {
+            $db->prepare('INSERT INTO settings (`key`, `value`) VALUES (?, ?)
+                ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)')
+               ->execute([$body['key'], $body['value']]);
+        } else {
             $db->prepare('INSERT INTO settings (`key`, `value`) VALUES (?, ?)
                 ON CONFLICT(`key`) DO UPDATE SET `value` = excluded.`value`')
-               ->execute([$key, $value]);
+               ->execute([$body['key'], $body['value']]);
+        }
+    } else {
+        $dbPairs = frontendToDb($body);
+        $upsertSql = Database::isMySQL()
+            ? 'INSERT INTO settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)'
+            : 'INSERT INTO settings (`key`, `value`) VALUES (?, ?) ON CONFLICT(`key`) DO UPDATE SET `value` = excluded.`value`';
+        foreach ($dbPairs as $key => $value) {
+            $db->prepare($upsertSql)->execute([$key, $value]);
         }
     }
 
@@ -123,10 +130,11 @@ function updateSiteSettings(): void {
     $db = Database::get();
 
     $dbPairs = frontendToDb($body);
+    $upsertSql = Database::isMySQL()
+        ? 'INSERT INTO settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)'
+        : 'INSERT INTO settings (`key`, `value`) VALUES (?, ?) ON CONFLICT(`key`) DO UPDATE SET `value` = excluded.`value`';
     foreach ($dbPairs as $key => $value) {
-        $db->prepare('INSERT INTO settings (`key`, `value`) VALUES (?, ?)
-            ON CONFLICT(`key`) DO UPDATE SET `value` = excluded.`value`')
-           ->execute([$key, $value]);
+        $db->prepare($upsertSql)->execute([$key, $value]);
     }
 
     Response::json(['message' => '保存成功']);
