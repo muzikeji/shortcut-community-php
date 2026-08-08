@@ -56,9 +56,14 @@ class PlistParser {
             $data = file_get_contents($shortcutUrl, false, $ctx);
             if (!$data) return null;
 
-            $plist = new CFPropertyList();
-            $plist->parse($data);
-            $arr = $plist->toArray();
+            try {
+                $plist = new CFPropertyList();
+                $plist->parse($data);
+                $arr = $plist->toArray();
+            } catch (\Throwable $e) {
+                $arr = self::parseBinaryPlist($data);
+                if ($arr === null) return null;
+            }
 
             $wf = $arr;
             if (!isset($wf['WFWorkflowActions'])) return null;
@@ -106,5 +111,107 @@ class PlistParser {
         } catch (\Exception $e) {
             return null;
         }
+    }
+
+    public static function parseBinaryPlist(string $data): ?array {
+        if (strlen($data) < 40 || substr($data, 0, 8) !== 'bplist00') return null;
+
+        $trailer = substr($data, -32);
+        $offsetIntSize = ord($trailer[6]);
+        $objectRefSize = ord($trailer[7]);
+        $numObjects = self::readBEInt(substr($trailer, 8, 8));
+        $topObject = self::readBEInt(substr($trailer, 16, 8));
+        $tableOffset = self::readBEInt(substr($trailer, 24, 8));
+
+        if ($numObjects < 1 || $offsetIntSize < 1 || $objectRefSize < 1) return null;
+
+        $offsets = [];
+        for ($i = 0; $i < $numObjects; $i++) {
+            $offsets[] = self::readBEInt(substr($data, $tableOffset + $i * $offsetIntSize, $offsetIntSize));
+        }
+
+        try {
+            return self::readObject($data, $offsets, $objectRefSize, $topObject);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private static function readBEInt(string $bytes): int {
+        $val = 0;
+        for ($i = 0, $n = strlen($bytes); $i < $n; $i++) {
+            $val = ($val << 8) | ord($bytes[$i]);
+        }
+        return $val;
+    }
+
+    private static function readLength(string $data, int &$pos): int {
+        $marker = ord($data[$pos]);
+        $nbytes = 1 << ($marker & 0x0F);
+        if ($nbytes > 8) $nbytes = 8;
+        $val = self::readBEInt(substr($data, $pos + 1, $nbytes));
+        $pos += 1 + $nbytes;
+        return $val;
+    }
+
+    private static function readObject(string $data, array $offsets, int $refSize, int $index): mixed {
+        $offset = $offsets[$index];
+        $marker = ord($data[$offset]);
+        $type = $marker >> 4;
+        $info = $marker & 0x0F;
+        $pos = $offset + 1;
+
+        switch ($type) {
+            case 0x0:
+                if ($info === 0x8) return false;
+                if ($info === 0x9) return true;
+                return null;
+            case 0x1:
+                $nbytes = 1 << $info;
+                if ($nbytes > 8) $nbytes = 8;
+                return self::readBEInt(substr($data, $pos, $nbytes));
+            case 0x2:
+                $nbytes = 1 << $info;
+                if ($nbytes === 4) return unpack('G', substr($data, $pos, 4))[1];
+                return unpack('E', substr($data, $pos, 8))[1];
+            case 0x3:
+                return unpack('E', substr($data, $pos, 8))[1] + 978307200;
+            case 0x4:
+                $len = $info === 0x0F ? self::readLength($data, $pos) : $info;
+                return substr($data, $pos, $len);
+            case 0x5:
+                $len = $info === 0x0F ? self::readLength($data, $pos) : $info;
+                return substr($data, $pos, $len);
+            case 0x6:
+                $len = $info === 0x0F ? self::readLength($data, $pos) : $info;
+                return mb_convert_encoding(substr($data, $pos, $len), 'UTF-8', 'UTF-16BE');
+            case 0x8:
+                return 'uid:' . self::readBEInt(substr($data, $pos, $info));
+            case 0xA:
+                $count = $info === 0x0F ? self::readLength($data, $pos) : $info;
+                $arr = [];
+                for ($i = 0; $i < $count; $i++) {
+                    $ref = self::readBEInt(substr($data, $pos, $refSize));
+                    $pos += $refSize;
+                    $arr[] = self::readObject($data, $offsets, $refSize, $ref);
+                }
+                return $arr;
+            case 0xD:
+                $count = $info === 0x0F ? self::readLength($data, $pos) : $info;
+                $keyRefs = [];
+                for ($i = 0; $i < $count; $i++) {
+                    $keyRefs[] = self::readBEInt(substr($data, $pos, $refSize));
+                    $pos += $refSize;
+                }
+                $dict = [];
+                for ($i = 0; $i < $count; $i++) {
+                    $valRef = self::readBEInt(substr($data, $pos, $refSize));
+                    $pos += $refSize;
+                    $key = self::readObject($data, $offsets, $refSize, $keyRefs[$i]);
+                    $dict[$key] = self::readObject($data, $offsets, $refSize, $valRef);
+                }
+                return $dict;
+        }
+        return null;
     }
 }
