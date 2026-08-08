@@ -185,6 +185,7 @@ function createShortcut(): void {
     $url = $body['url'] ?? '';
     $slug = trim($body['slug'] ?? '');
     $color = $body['color'] ?? '';
+    $stats = $body['stats'] ?? null;
 
     if (!$title) Response::error('请填写快捷指令名称');
     if (!$url) Response::error('请提供快捷指令链接');
@@ -202,16 +203,8 @@ function createShortcut(): void {
     $slugExist->execute([$finalSlug]);
     if ($slugExist->fetch()) Response::error('该标识已被使用，请重试');
 
-    $meta = fetchShortcutMeta($url);
-    $stats = null;
-    if ($meta && $meta['shortcutUrl']) {
-        $stats = PlistParser::parseShortcutInfo($meta['shortcutUrl']);
-    }
-    $statsJson = $stats ? json_encode($stats) : '';
-
-    $finalColor = preg_match('/^#[0-9a-fA-F]{6}$/', $color) ? $color : ($meta ? ($meta['color'] ?? '') : '');
-
-    $finalTitle = (isset($meta) && $meta['name']) ? $meta['name'] : $title;
+    $statsJson = is_array($stats) ? json_encode($stats) : '';
+    $finalColor = preg_match('/^#[0-9a-fA-F]{6}$/', $color) ? $color : '';
 
     $isAdminOrOwner = in_array(($authUser['role'] ?? ''), ['admin', 'owner']);
     $status = $isAdminOrOwner ? 'active' : 'pending';
@@ -219,11 +212,11 @@ function createShortcut(): void {
     $db->prepare('INSERT INTO shortcuts (slug, title, description, category, file_url, file_size, user_id, color, stats, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([
         $finalSlug,
-        $finalTitle,
+        $title,
         $description,
         $category ?: '其他',
         $url,
-        $stats['size'] ?? 0,
+        is_array($stats) ? ($stats['size'] ?? 0) : 0,
         $authUser['id'],
         $finalColor,
         $statsJson,
