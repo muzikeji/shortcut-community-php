@@ -157,7 +157,7 @@ class Database {
                 email VARCHAR(255) NOT NULL UNIQUE,
                 password VARCHAR(255) NOT NULL,
                 avatar VARCHAR(500) DEFAULT '',
-                bio TEXT DEFAULT '',
+                bio TEXT,
                 role VARCHAR(20) DEFAULT 'user',
                 banned TINYINT DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -167,7 +167,7 @@ class Database {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 slug VARCHAR(255) NOT NULL UNIQUE,
                 title VARCHAR(255) NOT NULL,
-                description TEXT DEFAULT '',
+                description TEXT,
                 category VARCHAR(50) DEFAULT '其他',
                 file_url VARCHAR(500) NOT NULL,
                 file_size INT DEFAULT 0,
@@ -176,7 +176,7 @@ class Database {
                 comment_count INT DEFAULT 0,
                 user_id INT NOT NULL,
                 color VARCHAR(50) DEFAULT '',
-                stats TEXT DEFAULT '',
+                stats TEXT,
                 status VARCHAR(20) DEFAULT 'active',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id)
@@ -208,7 +208,7 @@ class Database {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 shortcut_id INT NOT NULL,
                 url VARCHAR(500) NOT NULL,
-                version_note TEXT DEFAULT '',
+                version_note TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (shortcut_id) REFERENCES shortcuts(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
