@@ -20,8 +20,10 @@ function likeShortcut(string $idOrSlug): void {
         if ($like->fetch()) {
             $db->prepare('DELETE FROM likes WHERE shortcut_id = ? AND user_id = ?')
                ->execute([$shortcut['id'], $authUser['id']]);
-            $db->prepare('UPDATE shortcuts SET like_count = MAX(0, like_count - 1) WHERE id = ?')
-               ->execute([$shortcut['id']]);
+            $decSql = Database::isMySQL()
+                ? 'UPDATE shortcuts SET like_count = GREATEST(0, like_count - 1) WHERE id = ?'
+                : 'UPDATE shortcuts SET like_count = MAX(0, like_count - 1) WHERE id = ?';
+            $db->prepare($decSql)->execute([$shortcut['id']]);
             $liked = false;
         } else {
             $db->prepare('INSERT INTO likes (shortcut_id, user_id) VALUES (?, ?)')
@@ -123,7 +125,8 @@ function deleteComment(int $commentId): void {
     $comment->execute([$commentId]);
     $c = $comment->fetch();
     if (!$c) Response::notFound();
-    if ($c['user_id'] != $authUser['id'] && ($authUser['role'] ?? '') !== 'admin') {
+    $role = $authUser['role'] ?? '';
+    if ($c['user_id'] != $authUser['id'] && !in_array($role, ['admin', 'owner'], true)) {
         Response::forbidden();
     }
 
@@ -133,7 +136,10 @@ function deleteComment(int $commentId): void {
         $childCount->execute([$commentId]);
         $replies = (int) $childCount->fetch()['cnt'];
 
-        $db->prepare('UPDATE shortcuts SET comment_count = MAX(0, comment_count - ?) WHERE id = ?')
+        $decSql = Database::isMySQL()
+            ? 'UPDATE shortcuts SET comment_count = GREATEST(0, comment_count - ?) WHERE id = ?'
+            : 'UPDATE shortcuts SET comment_count = MAX(0, comment_count - ?) WHERE id = ?';
+        $db->prepare($decSql)
            ->execute([1 + $replies, $c['shortcut_id']]);
         $db->prepare('DELETE FROM comments WHERE id = ? OR parent_id = ?')
            ->execute([$commentId, $commentId]);

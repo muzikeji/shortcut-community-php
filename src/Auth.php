@@ -59,6 +59,7 @@ class Auth {
             $stmt->execute([$payload['id']]);
             $user = $stmt->fetch();
             if (!$user) return null;
+            if ((int) $user['banned'] === 1) return null;
             return $user;
         } catch (\PDOException $e) {
             error_log('Auth: failed to query user: ' . $e->getMessage());

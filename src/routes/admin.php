@@ -86,26 +86,10 @@ function updateUserRole(int $userId): void {
     Response::json(['message' => '角色更新成功']);
 }
 
-function toggleBanUser(int $userId): void {
-    $authUser = Auth::requireAdmin();
-    if (!$authUser) Response::forbidden();
-
-    $body = json_decode(file_get_contents('php://input'), true);
-    if (!is_array($body)) Response::error('无效的请求数据', 400);
-    $banned = !empty($body['banned']) && $body['banned'] !== 'false' ? 1 : 0;
-
-    $db = Database::get();
-    if ($userId === $authUser['id']) Response::error('不能操作自己的账号');
-
-    $db->prepare('UPDATE users SET banned = ? WHERE id = ?')->execute([$banned, $userId]);
-
-    Response::json(['message' => $banned ? '已封禁' : '已解封']);
-}
-
 function banUser(int $userId): void {
     $authUser = Auth::requireAdmin();
     if (!$authUser) Response::forbidden();
-    if ($userId === $authUser['id']) Response::error('不能操作自己的账号');
+    if ((int) $userId === (int) $authUser['id']) Response::error('不能操作自己的账号');
 
     $db = Database::get();
     $stmt = $db->prepare('SELECT role FROM users WHERE id = ?');

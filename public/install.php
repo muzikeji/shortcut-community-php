@@ -62,14 +62,14 @@ function installHtml(string $msg, string $type = 'info', bool $done = false): vo
     installFooter($done);
 }
 
-function checkPhpVersion(): string|false {
+function checkPhpVersion(): ?string {
     if (version_compare(PHP_VERSION, '7.4.0', '<')) {
         return 'PHP 版本过低（当前: ' . PHP_VERSION . '），需要 >= 7.4';
     }
     return false;
 }
 
-function checkExtensions(): string|false {
+function checkExtensions(): ?string {
     $missing = [];
     if (!extension_loaded('pdo_sqlite') && !extension_loaded('pdo_mysql')) $missing[] = 'PDO (至少需要 SQLite 或 MySQL)';
     if (!extension_loaded('json')) $missing[] = 'JSON';
@@ -78,7 +78,7 @@ function checkExtensions(): string|false {
     return $missing ? '缺少 PHP 扩展: ' . implode(', ', $missing) : false;
 }
 
-function checkComposerDeps(): string|false {
+function checkComposerDeps(): ?string {
     $autoload = ROOT_DIR . '/vendor/autoload.php';
     if (file_exists($autoload)) return false;
     return 'Composer 依赖未安装，请运行 composer install';
@@ -88,7 +88,10 @@ function writeEnv(string $driver, array $mysqlConfig = []): bool {
     $envFile = ROOT_DIR . '/.env';
     $lines = [];
 
-    $jwtSecret = env('JWT_SECRET') ?: 'shortcut-community-jwt-secret-change-me';
+    $jwtSecret = env('JWT_SECRET');
+    if (!$jwtSecret) {
+        $jwtSecret = 'sc_' . bin2hex(random_bytes(32));
+    }
     $lines[] = 'JWT_SECRET=' . $jwtSecret;
 
     $lines[] = 'DB_DRIVER=' . $driver;
@@ -120,7 +123,7 @@ function loadEnv(): void {
     }
 }
 
-function initDatabase(): string|false {
+function initDatabase(): ?string {
     $driver = env('DB_DRIVER') ?: 'sqlite';
 
     if ($driver === 'mysql') {
@@ -169,12 +172,12 @@ function hasAdmin(): bool {
         $db = Shortcut\Database::get();
         $stmt = $db->query("SELECT COUNT(*) as cnt FROM users WHERE role IN ('admin', 'owner')");
         return (int) $stmt->fetch()['cnt'] > 0;
-    } catch (\Exception $e) {
+    } catch (\Throwable $e) {
         return false;
     }
 }
 
-function createOwner(string $username, string $email, string $password): string|false {
+function createOwner(string $username, string $email, string $password): ?string {
     try {
         $db = Shortcut\Database::get();
 
@@ -302,6 +305,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (hasAdmin()) {
+        installHeader('系统已安装，安装程序已禁用。如需重置安装，请手动清空数据库并删除 install.php。', 'warning');
+        installFooter();
+        return;
+    }
+
     $username = trim($_POST['username'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';

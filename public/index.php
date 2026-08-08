@@ -142,6 +142,7 @@ function routeApi(string $path): void {
 
     // Interact backward compat
     if ($parts[0] === 'interact') {
+        require_once ROOT_DIR . '/src/routes/shortcuts.php';
         require_once ROOT_DIR . '/src/routes/interact.php';
         if ($method === 'POST' && isset($parts[1]) && ($parts[2] ?? '') === 'like') {
             \Shortcut\Routes\likeShortcut($parts[1]);
@@ -234,8 +235,12 @@ function routeApi(string $path): void {
 }
 
 function serveUpload(string $path): void {
-    $file = ROOT_DIR . $path;
-    if (!file_exists($file) || !is_file($file)) {
+    $uploadDir = realpath(ROOT_DIR . '/uploads');
+    $file = realpath(ROOT_DIR . $path);
+    if ($file === false || $uploadDir === false || strpos($file, $uploadDir . DIRECTORY_SEPARATOR) !== 0) {
+        Response::notFound();
+    }
+    if (!is_file($file)) {
         Response::notFound();
     }
     $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
@@ -250,11 +255,13 @@ function serveUpload(string $path): void {
 }
 
 function serveStatic(string $path): void {
-    $frontendDir = ROOT_DIR . '/frontend';
+    $frontendDir = realpath(ROOT_DIR . '/frontend');
     $file = $path === '/' ? '/index.html' : $path;
+    $candidate = realpath($frontendDir . $file);
 
-    $candidate = $frontendDir . $file;
-    if (file_exists($candidate) && is_file($candidate)) {
+    if ($candidate !== false && $frontendDir !== false
+        && strpos($candidate, $frontendDir . DIRECTORY_SEPARATOR) === 0
+        && is_file($candidate)) {
         $mimeTypes = [
             'html' => 'text/html', 'css' => 'text/css', 'js' => 'application/javascript',
             'json' => 'application/json', 'png' => 'image/png', 'jpg' => 'image/jpeg',

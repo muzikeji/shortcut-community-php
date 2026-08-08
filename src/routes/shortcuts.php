@@ -56,7 +56,7 @@ function getShortcuts(): void {
     $where = [];
     $params = [];
 
-    if ($status && $userId && $authUser && (int) $userId === $authUser['id']) {
+    if ($status && $userId && $authUser && (int) $userId === (int) $authUser['id']) {
         $where[] = 's.status = ?';
         $params[] = $status;
     } elseif (!$includeRemoved) {

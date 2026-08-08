@@ -6,7 +6,7 @@ use PDOException;
 
 class Database {
     private static ?PDO $instance = null;
-    private static string $dns;
+    private static string $dsn;
     private static ?string $user = null;
     private static ?string $pass = null;
 
@@ -19,19 +19,19 @@ class Database {
             $name = env('DB_NAME') ?: 'shortcut';
             self::$user = env('DB_USER') ?: 'root';
             self::$pass = env('DB_PASS') ?: '';
-            self::$dns = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+            self::$dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
         } else {
             $dbPath = $baseDir . '/data/database.sqlite';
             $dir = dirname($dbPath);
             if (!is_dir($dir)) {
                 mkdir($dir, 0755, true);
             }
-            self::$dns = 'sqlite:' . $dbPath;
+            self::$dsn = 'sqlite:' . $dbPath;
         }
     }
 
     public static function isMySQL(): bool {
-        return strpos(self::$dns, 'mysql:') === 0;
+        return strpos(self::$dsn, 'mysql:') === 0;
     }
 
     public static function get(): PDO {
@@ -43,9 +43,9 @@ class Database {
             ];
 
             if (self::isMySQL()) {
-                self::$instance = new PDO(self::$dns, self::$user, self::$pass, $options);
+                self::$instance = new PDO(self::$dsn, self::$user, self::$pass, $options);
             } else {
-                self::$instance = new PDO(self::$dns, null, null, $options);
+                self::$instance = new PDO(self::$dsn, null, null, $options);
                 self::$instance->exec('PRAGMA journal_mode = WAL');
                 self::$instance->exec('PRAGMA foreign_keys = ON');
             }
